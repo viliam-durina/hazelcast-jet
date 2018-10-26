@@ -21,7 +21,6 @@ import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.core.JetTestSupport;
 import com.hazelcast.jet.core.Processor;
-import com.hazelcast.jet.core.Watermark;
 import com.hazelcast.jet.core.test.TestOutbox;
 import com.hazelcast.jet.core.test.TestProcessorContext;
 import com.hazelcast.jet.core.test.TestSupport;
@@ -42,6 +41,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.stream.IntStream;
 
 import static com.hazelcast.jet.core.EventTimePolicy.eventTimePolicy;
+import static com.hazelcast.jet.core.TestUtil.wm;
 import static com.hazelcast.jet.core.WatermarkPolicy.limitingLag;
 import static com.hazelcast.jet.impl.execution.WatermarkCoalescer.IDLE_MESSAGE;
 import static com.hazelcast.jet.impl.util.Util.uncheckRun;
@@ -180,9 +180,5 @@ public class StreamEventJournalP_WmCoalescingTest extends JetTestSupport {
         return () -> new StreamEventJournalP<>(map, assignedPartitions, e -> true,
                 EventJournalMapEvent::getNewValue, START_FROM_OLDEST, false,
                 eventTimePolicy(Integer::intValue, limitingLag(0), 1, 0, idleTimeout));
-    }
-
-    private Watermark wm(long timestamp) {
-        return new Watermark(timestamp);
     }
 }
