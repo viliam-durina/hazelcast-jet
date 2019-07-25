@@ -27,6 +27,7 @@ import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetCacheManager;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.Job;
+import com.hazelcast.jet.LightJob;
 import com.hazelcast.jet.Observable;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.config.JobConfig;
@@ -342,6 +343,11 @@ public final class JetBootstrap {
         private Job remember(@Nonnull Job job) {
             submittedJobs.add(job);
             return job;
+        }
+
+        @Nonnull @Override
+        public LightJob newLightJob(DAG dag) {
+            return instance.newLightJob(dag);
         }
 
         private JobConfig updateJobConfig(@Nonnull JobConfig config) {

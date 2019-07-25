@@ -189,6 +189,14 @@ public interface JetInstance {
     @Nonnull
     Job newJobIfAbsent(@Nonnull Pipeline pipeline, @Nonnull JobConfig config);
 
+    @Nonnull
+    default LightJob newLightJob(Pipeline p) {
+        return newLightJob(p.toDag());
+    }
+
+    @Nonnull
+    LightJob newLightJob(DAG dag);
+
     /**
      * Returns all submitted jobs including running and completed ones.
      */

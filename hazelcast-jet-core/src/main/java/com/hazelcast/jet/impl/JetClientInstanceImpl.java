@@ -23,8 +23,10 @@ import com.hazelcast.client.impl.protocol.codec.ClientGetDistributedObjectsCodec
 import com.hazelcast.client.impl.spi.impl.ClientInvocation;
 import com.hazelcast.internal.serialization.SerializationService;
 import com.hazelcast.jet.Job;
+import com.hazelcast.jet.LightJob;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.config.JobConfig;
+import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.impl.client.protocol.codec.JetExistsDistributedObjectCodec;
 import com.hazelcast.jet.impl.client.protocol.codec.JetGetJobIdsByNameCodec;
 import com.hazelcast.jet.impl.client.protocol.codec.JetGetJobIdsCodec;
@@ -58,6 +60,12 @@ public class JetClientInstanceImpl extends AbstractJetInstance {
 
     @Nonnull
     @Override
+    public LightJob newLightJob(DAG dag) {
+        // TODO [viliam]
+        throw new UnsupportedOperationException("todo");
+    }
+
+    @Nonnull @Override
     public JetConfig getConfig() {
         throw new UnsupportedOperationException("Jet Configuration is not available on the client");
     }
@@ -69,7 +77,7 @@ public class JetClientInstanceImpl extends AbstractJetInstance {
             List<Long> jobs = JetGetJobIdsCodec.decodeResponse(resp);
             return toList(jobs, jobId -> new ClientJobProxy(this, jobId));
         });
-    }
+        }
 
     /**
      * Returns a list of jobs and a summary of their details.
@@ -143,4 +151,4 @@ public class JetClientInstanceImpl extends AbstractJetInstance {
         }
     }
 
-}
+    }
