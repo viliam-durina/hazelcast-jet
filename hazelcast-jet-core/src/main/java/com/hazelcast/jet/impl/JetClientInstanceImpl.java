@@ -21,6 +21,8 @@ import com.hazelcast.client.impl.clientside.HazelcastClientInstanceImpl;
 import com.hazelcast.client.impl.protocol.ClientMessage;
 import com.hazelcast.client.impl.protocol.codec.ClientGetDistributedObjectsCodec;
 import com.hazelcast.client.impl.spi.impl.ClientInvocation;
+import com.hazelcast.client.impl.spi.impl.ClientInvocationFuture;
+import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.internal.serialization.SerializationService;
 import com.hazelcast.jet.Job;
 import com.hazelcast.jet.LightJob;
@@ -31,6 +33,7 @@ import com.hazelcast.jet.impl.client.protocol.codec.JetExistsDistributedObjectCo
 import com.hazelcast.jet.impl.client.protocol.codec.JetGetJobIdsByNameCodec;
 import com.hazelcast.jet.impl.client.protocol.codec.JetGetJobIdsCodec;
 import com.hazelcast.jet.impl.client.protocol.codec.JetGetJobSummaryListCodec;
+import com.hazelcast.jet.impl.client.protocol.codec.JetSubmitLightJobCodec;
 import com.hazelcast.jet.impl.util.ExceptionUtil;
 import com.hazelcast.logging.ILogger;
 
@@ -58,11 +61,15 @@ public class JetClientInstanceImpl extends AbstractJetInstance {
         ExceptionUtil.registerJetExceptions(hazelcastInstance.getClientExceptionFactory());
     }
 
-    @Nonnull
-    @Override
+    @Nonnull @Override
     public LightJob newLightJob(DAG dag) {
-        // TODO [viliam]
-        throw new UnsupportedOperationException("todo");
+        Data dagSerialized = serializationService.toData(dag);
+        ClientInvocation invocation = new ClientInvocation(
+                client, JetSubmitLightJobCodec.encodeRequest(dagSerialized), null, masterAddress(client.getCluster())
+        );
+
+        ClientInvocationFuture future = invocation.invoke();
+        return new ClientLightJobProxy(future);
     }
 
     @Nonnull @Override
@@ -150,5 +157,4 @@ public class JetClientInstanceImpl extends AbstractJetInstance {
             throw rethrow(t);
         }
     }
-
-    }
+}
