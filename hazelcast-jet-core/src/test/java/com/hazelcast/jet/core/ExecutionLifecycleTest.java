@@ -36,6 +36,8 @@ import com.hazelcast.jet.core.processor.Processors;
 import com.hazelcast.jet.impl.JetClientInstanceImpl;
 import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.JobResult;
+import com.hazelcast.jet.impl.TerminationMode;
+import com.hazelcast.jet.impl.exception.JobTerminateRequestedException;
 import com.hazelcast.jet.impl.execution.ExecutionContext;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlan;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlanBuilder;
@@ -210,7 +212,7 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
         Job job = runJobExpectFailure(dag, false);
 
         // Then
-        assertPsClosedWithError(MOCK_ERROR);
+        assertPsClosedWithError(new CancellationException());
         assertPmsClosedWithError(MOCK_ERROR);
         assertJobFailed(job, MOCK_ERROR);
     }
@@ -225,7 +227,7 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
         Job job = runJobExpectFailure(dag, false);
 
         // Then
-        assertPsClosedWithError(MOCK_ERROR);
+        assertPsClosedWithError(new CancellationException());
         assertPmsClosedWithError(MOCK_ERROR);
         assertJobFailed(job, MOCK_ERROR);
     }
@@ -247,9 +249,9 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
         try {
             executeAndPeel(instance().newJob(dag));
         } catch (Throwable caught) {
-            // Then
+        // Then
             assertExceptionInCauses(MOCK_ERROR, caught);
-        }
+    }
     }
 
     @Test
@@ -401,11 +403,11 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
 
         // When
         Job job = instance().newJob(dag);
-        NoOutputSourceP.executionStarted.await();
+            NoOutputSourceP.executionStarted.await();
         cancelAndJoin(job);
         assertTrueEventually(() -> {
             assertJobFailed(job, new CancellationException());
-            assertPsClosedWithError(new CancellationException());
+            assertPsClosedWithError(new JobTerminateRequestedException(TerminationMode.CANCEL_FORCEFUL));
             assertPmsClosedWithError(new CancellationException());
         });
     }
@@ -595,9 +597,9 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
         instance.newJob(dag).join();
         Collection<DistributedObject> objects = instance.getHazelcastInstance().getDistributedObjects();
         long snapshotMaps = objects.stream()
-                                   .filter(obj -> obj instanceof IMap)
-                                   .filter(obj -> obj.getName().contains("snapshots.data"))
-                                   .count();
+                .filter(obj -> obj instanceof IMap)
+                .filter(obj -> obj.getName().contains("snapshots.data"))
+                .count();
 
         assertEquals(0, snapshotMaps);
     }
@@ -765,7 +767,7 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
                 @Override
                 public Collection<? extends Processor> get(int count) {
                     throw new UnsupportedOperationException("should not get here");
-                }
+}
 
                 private void writeObject(java.io.ObjectOutputStream stream) throws Exception {
                     // simulate serialization failure

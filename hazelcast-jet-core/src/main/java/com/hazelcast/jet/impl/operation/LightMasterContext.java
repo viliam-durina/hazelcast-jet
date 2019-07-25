@@ -127,15 +127,7 @@ public class LightMasterContext {
     }
 
     private void invokeCompleteExecution(Throwable error) {
-        Function<ExecutionPlan, Operation> operationCtor = plan -> new CompleteExecutionOperation(jobId, false, error);
-        invokeOnParticipants(operationCtor, responses -> {
-            if (responses.stream().anyMatch(Objects::nonNull)) {
-                // log errors
-                logger.severe(jobIdString + ": some CompleteExecutionOperation invocations failed, execution " +
-                        "resources might leak: " + responses);
-            }
-            finalizeJob(error);
-        }, null, true);
+        finalizeJob(error);
     }
 
     private void finalizeJob(@Nullable Throwable failure) {
@@ -216,8 +208,8 @@ public class LightMasterContext {
             AtomicInteger remainingCount
     ) {
         InvocationFuture<Object> future = nodeEngine.getOperationService()
-                                                    .createInvocationBuilder(JetService.SERVICE_NAME, op, address)
-                                                    .invoke();
+                                                             .createInvocationBuilder(JetService.SERVICE_NAME, op, address)
+                                                             .invoke();
 
         future.whenComplete((r, throwable) -> {
             Object response = r != null ? r : throwable != null ? peel(throwable) : NULL_OBJECT;

@@ -121,60 +121,60 @@ class MasterSnapshotContext {
 
     void tryBeginSnapshot() {
         mc.coordinationService().submitToCoordinatorThread(() -> {
-            boolean isTerminal;
-            String snapshotMapName;
-            CompletableFuture<Void> future;
-            mc.lock();
+        boolean isTerminal;
+        String snapshotMapName;
+        CompletableFuture<Void> future;
+        mc.lock();
             long localExecutionId;
-            try {
-                if (mc.jobStatus() != RUNNING) {
-                    logger.fine("Not beginning snapshot, " + mc.jobIdString() + " is not RUNNING, but " + mc.jobStatus());
-                    return;
-                }
-                if (snapshotInProgress) {
-                    logger.fine("Not beginning snapshot since one is already in progress " + mc.jobIdString());
-                    return;
-                }
-                if (terminalSnapshotFuture.isDone()) {
-                    logger.fine("Not beginning snapshot since terminal snapshot is already completed " + mc.jobIdString());
-                    return;
-                }
-
-                Tuple3<String, Boolean, CompletableFuture<Void>> requestedSnapshot = snapshotQueue.poll();
-                if (requestedSnapshot == null) {
-                    return;
-                }
-                snapshotInProgress = true;
-                snapshotMapName = requestedSnapshot.f0();
-                assert requestedSnapshot.f1() != null;
-                isTerminal = requestedSnapshot.f1();
-                future = requestedSnapshot.f2();
-                mc.jobExecutionRecord().startNewSnapshot(snapshotMapName);
-                localExecutionId = mc.executionId();
-            } finally {
-                mc.unlock();
+        try {
+            if (mc.jobStatus() != RUNNING) {
+                logger.fine("Not beginning snapshot, " + mc.jobIdString() + " is not RUNNING, but " + mc.jobStatus());
+                return;
+            }
+            if (snapshotInProgress) {
+                logger.fine("Not beginning snapshot since one is already in progress " + mc.jobIdString());
+                return;
+            }
+            if (terminalSnapshotFuture.isDone()) {
+                logger.fine("Not beginning snapshot since terminal snapshot is already completed " + mc.jobIdString());
+                return;
             }
 
-            mc.writeJobExecutionRecord(false);
-            long newSnapshotId = mc.jobExecutionRecord().ongoingSnapshotId();
-            boolean isExport = snapshotMapName != null;
+            Tuple3<String, Boolean, CompletableFuture<Void>> requestedSnapshot = snapshotQueue.poll();
+            if (requestedSnapshot == null) {
+                return;
+            }
+            snapshotInProgress = true;
+            snapshotMapName = requestedSnapshot.f0();
+                assert requestedSnapshot.f1() != null;
+            isTerminal = requestedSnapshot.f1();
+            future = requestedSnapshot.f2();
+            mc.jobExecutionRecord().startNewSnapshot(snapshotMapName);
+                localExecutionId = mc.executionId();
+        } finally {
+            mc.unlock();
+        }
+
+        mc.writeJobExecutionRecord(false);
+        long newSnapshotId = mc.jobExecutionRecord().ongoingSnapshotId();
+        boolean isExport = snapshotMapName != null;
             int snapshotFlags = SnapshotFlags.create(isTerminal, isExport);
-            String finalMapName = isExport ? exportedSnapshotMapName(snapshotMapName)
-                    : snapshotDataMapName(mc.jobId(), mc.jobExecutionRecord().ongoingDataMapIndex());
-                mc.nodeEngine().getHazelcastInstance().getMap(finalMapName).clear();
+        String finalMapName = isExport ? exportedSnapshotMapName(snapshotMapName)
+                : snapshotDataMapName(mc.jobId(), mc.jobExecutionRecord().ongoingDataMapIndex());
+        mc.nodeEngine().getHazelcastInstance().getMap(finalMapName).clear();
             logFine(logger, "Starting snapshot %d for %s, flags: %s, writing to: %s",
                     newSnapshotId, mc.jobIdString(), SnapshotFlags.toString(snapshotFlags), snapshotMapName);
 
             Function<ExecutionPlan, Operation> factory = plan ->
                     new SnapshotPhase1Operation(mc.jobId(), localExecutionId, newSnapshotId, finalMapName, snapshotFlags);
 
-            // Need to take a copy of executionId: we don't cancel the scheduled task when the execution
-            // finalizes. If a new execution is started in the meantime, we'll use the execution ID to detect it.
-            mc.invokeOnParticipants(
-                    factory,
+        // Need to take a copy of executionId: we don't cancel the scheduled task when the execution
+        // finalizes. If a new execution is started in the meantime, we'll use the execution ID to detect it.
+        mc.invokeOnParticipants(
+                factory,
                     responses -> onSnapshotPhase1Complete(responses, localExecutionId, newSnapshotId, finalMapName,
                             snapshotFlags, future),
-                    null, true);
+                null, true);
         });
     }
 
@@ -195,13 +195,13 @@ class MasterSnapshotContext {
         mc.coordinationService().submitToCoordinatorThread(() -> {
             SnapshotPhase1Result mergedResult = new SnapshotPhase1Result();
             for (Map.Entry<MemberInfo, Object> entry : responses) {
-                // the response is either SnapshotOperationResult or an exception, see #invokeOnParticipants() method
+            // the response is either SnapshotOperationResult or an exception, see #invokeOnParticipants() method
                 Object response = entry.getValue();
-                if (response instanceof Throwable) {
+            if (response instanceof Throwable) {
                     response = new SnapshotPhase1Result(0, 0, 0, (Throwable) response);
-                }
-                mergedResult.merge((SnapshotPhase1Result) response);
             }
+                mergedResult.merge((SnapshotPhase1Result) response);
+        }
             boolean isSuccess;
             SnapshotStats stats;
 
@@ -216,29 +216,29 @@ class MasterSnapshotContext {
                     return;
                 }
 
-                IMap<Object, Object> snapshotMap = mc.nodeEngine().getHazelcastInstance().getMap(snapshotMapName);
-                try {
-                    SnapshotValidationRecord validationRecord = new SnapshotValidationRecord(snapshotId,
-                            mergedResult.getNumChunks(), mergedResult.getNumBytes(),
-                            mc.jobExecutionRecord().ongoingSnapshotStartTime(), mc.jobId(), mc.jobName(),
-                            mc.jobRecord().getDagJson());
+        IMap<Object, Object> snapshotMap = mc.nodeEngine().getHazelcastInstance().getMap(snapshotMapName);
+        try {
+            SnapshotValidationRecord validationRecord = new SnapshotValidationRecord(snapshotId,
+                    mergedResult.getNumChunks(), mergedResult.getNumBytes(),
+                    mc.jobExecutionRecord().ongoingSnapshotStartTime(), mc.jobId(), mc.jobName(),
+                    mc.jobRecord().getDagJson());
 
                     // The decision moment for exported snapshots: after this the snapshot is valid to be restored
                     // from, however it will be not listed by JetInstance.getJobStateSnapshots unless the validation
                     // record is inserted into the cache below
-                    Object oldValue = snapshotMap.put(SnapshotValidationRecord.KEY, validationRecord);
+            Object oldValue = snapshotMap.put(SnapshotValidationRecord.KEY, validationRecord);
 
-                    if (snapshotMapName.startsWith(EXPORTED_SNAPSHOTS_PREFIX)) {
-                        String snapshotName = snapshotMapName.substring(EXPORTED_SNAPSHOTS_PREFIX.length());
-                        mc.jobRepository().cacheValidationRecord(snapshotName, validationRecord);
-                    }
-                    if (oldValue != null) {
+            if (snapshotMapName.startsWith(EXPORTED_SNAPSHOTS_PREFIX)) {
+                String snapshotName = snapshotMapName.substring(EXPORTED_SNAPSHOTS_PREFIX.length());
+                mc.jobRepository().cacheValidationRecord(snapshotName, validationRecord);
+            }
+            if (oldValue != null) {
                         logger.severe("SnapshotValidationRecord overwritten after writing to '" + snapshotMapName
                                 + "' for " + mc.jobIdString() + ": snapshot data might be corrupted");
-                    }
-                } catch (Exception e) {
+            }
+        } catch (Exception e) {
                     mergedResult.merge(new SnapshotPhase1Result(0, 0, 0, e));
-                }
+        }
 
                 isSuccess = mergedResult.getError() == null;
                 stats = mc.jobExecutionRecord().ongoingSnapshotDone(
@@ -254,19 +254,19 @@ class MasterSnapshotContext {
                             snapshotId, mc.jobIdString(), isSuccess ? "SUCCESS" : "FAILURE",
                             stats.duration(), stats.numBytes(), stats.numKeys(), stats.numChunks(), snapshotMapName));
                 }
-                if (!isSuccess) {
+        if (!isSuccess) {
                     logger.warning(mc.jobIdString() + " snapshot " + snapshotId + " phase 1 failed on some member(s), " +
-                            "one of the failures: " + mergedResult.getError());
-                    try {
-                        snapshotMap.clear();
-                    } catch (Exception e) {
-                        logger.warning(mc.jobIdString() + ": failed to clear snapshot map '" + snapshotMapName
+                    "one of the failures: " + mergedResult.getError());
+            try {
+                snapshotMap.clear();
+            } catch (Exception e) {
+                logger.warning(mc.jobIdString() + ": failed to clear snapshot map '" + snapshotMapName
                                 + "' after a failure", e);
-                    }
-                }
+            }
+        }
                 if (!SnapshotFlags.isExport(snapshotFlags)) {
-                    mc.jobRepository().clearSnapshotData(mc.jobId(), mc.jobExecutionRecord().ongoingDataMapIndex());
-                }
+            mc.jobRepository().clearSnapshotData(mc.jobId(), mc.jobExecutionRecord().ongoingDataMapIndex());
+        }
             } finally {
                 mc.unlock();
             }
@@ -312,48 +312,48 @@ class MasterSnapshotContext {
                 }
             }
 
-            if (future != null) {
+        if (future != null) {
                 if (phase1Error == null) {
-                    future.complete(null);
-                } else {
+                future.complete(null);
+            } else {
                     future.completeExceptionally(new JetException(phase1Error));
-                }
             }
+        }
 
-            mc.lock();
-            try {
+        mc.lock();
+        try {
                 // double-check the execution ID after locking
                 if (executionId != mc.executionId()) {
-                    logger.fine("Not completing terminalSnapshotFuture on " + mc.jobIdString() + ", new execution " +
-                            "already started, snapshot was for executionId=" + idToString(executionId));
-                    return;
-                }
-                assert snapshotInProgress : "snapshot not in progress";
-                snapshotInProgress = false;
+                logger.fine("Not completing terminalSnapshotFuture on " + mc.jobIdString() + ", new execution " +
+                        "already started, snapshot was for executionId=" + idToString(executionId));
+                return;
+            }
+            assert snapshotInProgress : "snapshot not in progress";
+            snapshotInProgress = false;
                 if (SnapshotFlags.isTerminal(snapshotFlags)) {
-                    // after a terminal snapshot, no more snapshots are scheduled in this execution
-                    boolean completedNow = terminalSnapshotFuture.complete(null);
-                    assert completedNow : "terminalSnapshotFuture was already completed";
+                // after a terminal snapshot, no more snapshots are scheduled in this execution
+                boolean completedNow = terminalSnapshotFuture.complete(null);
+                assert completedNow : "terminalSnapshotFuture was already completed";
                     if (phase1Error != null) {
-                        // If the terminal snapshot failed, the executions might not terminate on some members
+                    // If the terminal snapshot failed, the executions might not terminate on some members
                         // normally and we don't care if they do - the snapshot is done and we have to bring the
                         // execution down. Let's execute the CompleteExecutionOperation to terminate them.
-                        mc.jobContext().cancelExecutionInvocations(mc.jobId(), mc.executionId(), null);
-                    }
-                } else if (!SnapshotFlags.isExport(snapshotFlags)) {
-                    // if this snapshot was an automatic snapshot, schedule the next one
-                    mc.coordinationService().scheduleSnapshot(mc, executionId);
+                    mc.jobContext().cancelExecutionInvocations(mc.jobId(), mc.executionId(), null, null);
                 }
-            } finally {
-                mc.unlock();
+                } else if (!SnapshotFlags.isExport(snapshotFlags)) {
+                // if this snapshot was an automatic snapshot, schedule the next one
+                mc.coordinationService().scheduleSnapshot(mc, executionId);
             }
+        } finally {
+            mc.unlock();
+        }
             if (logger.isFineEnabled()) {
                 logger.fine("Snapshot " + snapshotId + " for " + mc.jobIdString() + " completed in "
                         + (System.currentTimeMillis() - startTime) + "ms, status="
                         + (phase1Error == null ? "success" : "failure: " + phase1Error));
             }
 
-            tryBeginSnapshot();
+        tryBeginSnapshot();
         });
     }
 
