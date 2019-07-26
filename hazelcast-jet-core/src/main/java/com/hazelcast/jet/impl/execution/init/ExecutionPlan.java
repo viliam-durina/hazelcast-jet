@@ -408,7 +408,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         );
         if (edge.isLocal()) {
             return localCollector;
-        }
+            }
 
         OutboundCollector[] remoteCollectors = createRemoteOutboundCollectors(
                 edge,
@@ -425,7 +425,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         collectors[0] = localCollector;
         System.arraycopy(remoteCollectors, 0, collectors, 1, collectors.length - 1);
         return compositeCollector(collectors, edge, totalPartitionCount, false);
-    }
+        }
 
     private OutboundCollector createLocalOutboundCollector(
             EdgeDef edge,
@@ -463,7 +463,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                     edgeId -> {
                         int queueCount = upstreamParallelism + (!edge.isLocal() ? numRemoteMembers : 0);
                         return createConveyorArray(downstreamParallelism, queueCount, queueSize);
-                    }
+    }
             );
 
             OutboundCollector[] localCollectors = new OutboundCollector[downstreamParallelism];

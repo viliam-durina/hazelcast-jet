@@ -24,6 +24,8 @@ import javax.annotation.Nullable;
 
 import static java.util.Objects.requireNonNull;
 
+import javax.annotation.Nullable;
+
 public class ConveyorCollector implements OutboundCollector {
 
     private final ConcurrentConveyor<Object> conveyor;
