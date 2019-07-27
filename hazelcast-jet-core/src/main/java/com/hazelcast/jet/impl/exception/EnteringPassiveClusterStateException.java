@@ -17,11 +17,10 @@
 package com.hazelcast.jet.impl.exception;
 
 import com.hazelcast.jet.JetException;
-import com.hazelcast.jet.impl.operation.InitExecutionOperation;
 import com.hazelcast.jet.impl.operation.StartExecutionOperation;
 
 /**
- * An exception thrown internally for {@link InitExecutionOperation} and
+ * An exception thrown internally for {@link StartExecutionOperation} and
  * {@link StartExecutionOperation} to indicate that the cluster is entering
  * passive state.
  */

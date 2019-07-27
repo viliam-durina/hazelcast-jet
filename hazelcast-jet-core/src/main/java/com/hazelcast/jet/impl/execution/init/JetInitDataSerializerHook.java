@@ -34,14 +34,13 @@ import com.hazelcast.jet.impl.operation.GetJobIdsOperation;
 import com.hazelcast.jet.impl.operation.GetJobStatusOperation;
 import com.hazelcast.jet.impl.operation.GetJobSubmissionTimeOperation;
 import com.hazelcast.jet.impl.operation.GetJobSummaryListOperation;
-import com.hazelcast.jet.impl.operation.InitExecutionOperation;
+import com.hazelcast.jet.impl.operation.StartExecutionOperation;
 import com.hazelcast.jet.impl.operation.JoinSubmittedJobOperation;
 import com.hazelcast.jet.impl.operation.NotifyMemberShutdownOperation;
 import com.hazelcast.jet.impl.operation.PrepareForPassiveClusterOperation;
 import com.hazelcast.jet.impl.operation.ResumeJobOperation;
 import com.hazelcast.jet.impl.operation.SnapshotOperation;
 import com.hazelcast.jet.impl.operation.SnapshotOperation.SnapshotOperationResult;
-import com.hazelcast.jet.impl.operation.StartExecutionOperation;
 import com.hazelcast.jet.impl.operation.SubmitJobOperation;
 import com.hazelcast.jet.impl.operation.SubmitLightJobOperation;
 import com.hazelcast.jet.impl.operation.TerminateExecutionOperation;
@@ -62,7 +61,6 @@ public final class JetInitDataSerializerHook implements DataSerializerHook {
     public static final int EDGE_DEF = 2;
     public static final int JOB_RECORD = 3;
     public static final int JOB_RESULT = 4;
-    public static final int INIT_EXECUTION_OP = 5;
     public static final int START_EXECUTION_OP = 6;
     public static final int SUBMIT_JOB_OP = 8;
     public static final int GET_JOB_STATUS_OP = 9;
@@ -121,8 +119,6 @@ public final class JetInitDataSerializerHook implements DataSerializerHook {
                     return new JobRecord();
                 case JOB_RESULT:
                     return new JobResult();
-                case INIT_EXECUTION_OP:
-                    return new InitExecutionOperation();
                 case START_EXECUTION_OP:
                     return new StartExecutionOperation();
                 case SUBMIT_JOB_OP:

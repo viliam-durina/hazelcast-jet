@@ -16,10 +16,12 @@
 
 package com.hazelcast.jet.impl;
 
-import com.hazelcast.jet.impl.execution.ExecutionContext;
+import com.hazelcast.internal.serialization.InternalSerializationService;
+import com.hazelcast.jet.impl.execution.ExecutionContextImpl;
 import com.hazelcast.jet.impl.execution.SenderTasklet;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.Address;
+import com.hazelcast.nio.Bits;
 import com.hazelcast.nio.BufferObjectDataInput;
 import com.hazelcast.nio.BufferObjectDataOutput;
 import com.hazelcast.nio.Connection;
@@ -28,16 +30,17 @@ import com.hazelcast.spi.NodeEngine;
 import com.hazelcast.spi.impl.NodeEngineImpl;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ScheduledFuture;
 
+import static com.hazelcast.jet.Util.idToString;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 import static com.hazelcast.jet.impl.util.Util.createObjectDataInput;
 import static com.hazelcast.jet.impl.util.Util.createObjectDataOutput;
 import static com.hazelcast.jet.impl.util.Util.getMemberConnection;
 import static com.hazelcast.jet.impl.util.Util.getRemoteMembers;
-import static com.hazelcast.jet.Util.idToString;
 import static com.hazelcast.jet.impl.util.Util.uncheckRun;
 import static com.hazelcast.nio.Packet.FLAG_JET_FLOW_CONTROL;
 import static com.hazelcast.nio.Packet.FLAG_URGENT;
@@ -50,6 +53,7 @@ public class Networking {
     private final ILogger logger;
     private final JobExecutionService jobExecutionService;
     private final ScheduledFuture<?> flowControlSender;
+    private final boolean bigEndian;
 
     Networking(NodeEngine nodeEngine, JobExecutionService jobExecutionService, int flowControlPeriodMs) {
         this.nodeEngine = (NodeEngineImpl) nodeEngine;
@@ -57,6 +61,8 @@ public class Networking {
         this.jobExecutionService = jobExecutionService;
         this.flowControlSender = nodeEngine.getExecutionService().scheduleWithRepetition(
                 this::broadcastFlowControlPacket, 0, flowControlPeriodMs, MILLISECONDS);
+        bigEndian = ((InternalSerializationService) nodeEngine.getSerializationService()).getByteOrder()
+                == ByteOrder.BIG_ENDIAN;
     }
 
     void shutdown() {
@@ -72,12 +78,10 @@ public class Networking {
     }
 
     private void handleStreamPacket(Packet packet) throws IOException {
-        BufferObjectDataInput in = createObjectDataInput(nodeEngine, packet.toByteArray());
-        long executionId = in.readLong();
-        int vertexId = in.readInt();
-        int ordinal = in.readInt();
-        ExecutionContext executionContext = jobExecutionService.getExecutionContext(executionId);
-        executionContext.handlePacket(vertexId, ordinal, packet.getConn().getEndPoint(), in);
+        byte[] packetData = packet.toByteArray();
+        long executionId = Bits.readLong(packetData, 0, bigEndian);
+        ExecutionContextImpl executionContext = jobExecutionService.getExecutionContext(executionId);
+        executionContext.handlePacket(packetData, packet.getConn().getEndPoint());
     }
 
     public static byte[] createStreamPacketHeader(NodeEngine nodeEngine, long executionId,
@@ -114,7 +118,7 @@ public class Networking {
     private byte[] createFlowControlPacket(Address member) throws IOException {
         try (BufferObjectDataOutput out = createObjectDataOutput(nodeEngine)) {
             final boolean[] hasData = {false};
-            Map<Long, ExecutionContext> executionContexts = jobExecutionService.getExecutionContextsFor(member);
+            Map<Long, ExecutionContextImpl> executionContexts = jobExecutionService.getExecutionContextsFor(member);
             out.writeInt(executionContexts.size());
             executionContexts.forEach((execId, exeCtx) -> uncheckRun(() -> {
                 out.writeLong(execId);

@@ -44,7 +44,6 @@ import static com.hazelcast.jet.config.ProcessingGuarantee.EXACTLY_ONCE;
 import static com.hazelcast.jet.core.Edge.between;
 import static com.hazelcast.jet.core.JobStatus.NOT_RUNNING;
 import static com.hazelcast.jet.core.JobStatus.RUNNING;
-import static com.hazelcast.jet.core.JobStatus.STARTING;
 import static com.hazelcast.jet.core.processor.Processors.mapP;
 import static com.hazelcast.jet.function.FunctionEx.identity;
 import static java.util.Collections.singletonList;
@@ -80,10 +79,11 @@ public class OperationLossTest extends JetTestSupport {
         PacketFiltersUtil.resetPacketFiltersFrom(instance2.getHazelcastInstance());
     }
 
-    @Test
-    public void when_initExecutionOperationLost_then_jobRestarts() {
-        when_operationLost_then_jobRestarts(JetInitDataSerializerHook.INIT_EXECUTION_OP, STARTING);
-    }
+    // TODO [viliam] makes this test sense?
+//    @Test
+//    public void when_initExecutionOperationLost_then_jobRestarts() {
+//        when_operationLost_then_jobRestarts(JetInitDataSerializerHook.INIT_EXECUTION_OP, STARTING);
+//    }
 
     @Test
     public void when_startExecutionOperationLost_then_jobRestarts() {

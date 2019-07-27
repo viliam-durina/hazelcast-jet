@@ -28,7 +28,6 @@ import com.hazelcast.nio.BufferObjectDataInput;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
@@ -76,7 +75,7 @@ public class ReceiverTasklet implements Tasklet {
     private final double flowControlPeriodNs;
     private final ILogger logger;
 
-    private final Queue<BufferObjectDataInput> incoming = new MPSCQueue<>(null);
+    private final MPSCQueue<BufferObjectDataInput> incoming = new MPSCQueue<>(null);
     private final ProgressTracker tracker = new ProgressTracker();
     private final ArrayDeque<ObjWithPtionIdAndSize> inbox = new ArrayDeque<>();
     private final OutboundCollector collector;

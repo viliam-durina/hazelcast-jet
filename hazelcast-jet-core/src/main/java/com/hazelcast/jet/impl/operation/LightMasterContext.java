@@ -101,40 +101,20 @@ public class LightMasterContext {
         logFine(logger, "Built execution plans for %s", jobIdString);
         Set<MemberInfo> participants = executionPlanMap.keySet();
         Function<ExecutionPlan, Operation> operationCtor = plan ->
-                new InitExecutionOperation(jobId, jobId, membersView.getVersion(), participants,
+                new StartExecutionOperation(jobId, jobId, membersView.getVersion(), participants,
                         nodeEngine.getSerializationService().toData(plan), true);
         vertices = new HashSet<>();
         dag.iterator().forEachRemaining(vertices::add);
-        invokeOnParticipants(operationCtor, this::onInitStepCompleted, null, false);
-        return jobCompletionFuture;
-    }
 
-    // Called as callback when all InitOperation invocations are done
-    private void onInitStepCompleted(Collection<Object> responses) {
-        Throwable error = firstError(responses);
-        if (error == null) {
-            invokeStartExecution();
-        } else {
-            invokeCompleteExecution(error);
-        }
-    }
-
-    // If a participant leaves or the execution fails in a participant locally, executions are cancelled
-    // on the remaining participants and the callback is completed after all invocations return.
-    private void invokeStartExecution() {
         logFine(logger, "Executing %s", jobIdString);
-
-        Function<ExecutionPlan, Operation> operationCtor = plan -> new StartExecutionOperation(jobId, jobId);
         invokeOnParticipants(operationCtor, this::onExecuteStepCompleted, error -> cancelInvocations(), false);
+        return jobCompletionFuture;
     }
 
     // Called as callback when all ExecuteOperation invocations are done
     private void onExecuteStepCompleted(Collection<Object> responses) {
-        invokeCompleteExecution(firstError(responses));
-    }
-
-    private void invokeCompleteExecution(Throwable error) {
-        finalizeJob(error);
+        finalizeJob(responses.stream().filter(Throwable.class::isInstance).map(Throwable.class::cast)
+                             .findFirst().orElse(null));
     }
 
     private void finalizeJob(@Nullable Throwable failure) {
@@ -246,8 +226,4 @@ public class LightMasterContext {
         return clusterService.getMembershipManager().getMembersView();
     }
 
-    private Throwable firstError(Collection<Object> responses) {
-        return responses.stream().filter(Throwable.class::isInstance).map(Throwable.class::cast)
-                        .findFirst().orElse(null);
-    }
 }

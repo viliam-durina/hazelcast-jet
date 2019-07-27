@@ -32,7 +32,6 @@ import com.hazelcast.jet.impl.TerminationMode.ActionAfterTerminate;
 import com.hazelcast.jet.impl.exception.JobTerminateRequestedException;
 import com.hazelcast.jet.impl.exception.TerminatedWithSnapshotException;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlan;
-import com.hazelcast.jet.impl.operation.InitExecutionOperation;
 import com.hazelcast.jet.impl.operation.StartExecutionOperation;
 import com.hazelcast.jet.impl.operation.TerminateExecutionOperation;
 import com.hazelcast.jet.impl.util.ExceptionUtil;
@@ -199,9 +198,26 @@ public class MasterJobContext {
             logger.fine("Built execution plans for " + mc.jobIdString());
             Set<MemberInfo> participants = mc.executionPlanMap().keySet();
             Function<ExecutionPlan, Operation> operationCtor = plan ->
-                    new InitExecutionOperation(mc.jobId(), mc.executionId(), membersView.getVersion(), participants,
+                    new StartExecutionOperation(mc.jobId(), mc.executionId(), membersView.getVersion(), participants,
                             mc.nodeEngine().getSerializationService().toData(plan), false);
-            mc.invokeOnParticipants(operationCtor, this::onInitStepCompleted, null, false);
+
+            logger.fine("Executing " + mc.jobIdString());
+            long executionId = mc.executionId();
+
+            executionFailureCallback = new ExecutionFailureCallback(executionId);
+            if (requestedTerminationMode != null) {
+                handleTermination(requestedTerminationMode);
+            }
+
+            Consumer<Collection<Object>> completionCallback =
+                    responses -> onCompleteExecution(getResult("Execution", responses));
+            mc.setJobStatus(RUNNING);
+
+            mc.invokeOnParticipants(operationCtor, completionCallback, executionFailureCallback, false);
+
+            if (mc.jobConfig().getProcessingGuarantee() != NONE) {
+                mc.coordinationService().scheduleSnapshot(mc, executionId);
+            }
         } catch (UserCausedException e) {
             finalizeJob(e.getCause());
         }
@@ -406,46 +422,6 @@ public class MasterJobContext {
         return clusterService.getMembershipManager().getMembersView();
     }
 
-    // Called as callback when all InitOperation invocations are done
-    private void onInitStepCompleted(Collection<Object> responses) {
-        Throwable error = getResult("Init", responses);
-        JobStatus status = mc.jobStatus();
-        if (error == null && status == STARTING) {
-            invokeStartExecution();
-        } else {
-            cancelExecutionInvocations(mc.jobId(), mc.executionId(), null, () -> {
-                        onCompleteExecution(error != null ? error
-                                : new IllegalStateException("Cannot execute " + mc.jobIdString() + ": status is " + status));
-                    }
-            );
-        }
-    }
-
-    // If a participant leaves or the execution fails in a participant locally, executions are cancelled
-    // on the remaining participants and the callback is completed after all invocations return.
-    private void invokeStartExecution() {
-        logger.fine("Executing " + mc.jobIdString());
-
-        long executionId = mc.executionId();
-
-        executionFailureCallback = new ExecutionFailureCallback(executionId);
-        if (requestedTerminationMode != null) {
-            handleTermination(requestedTerminationMode);
-        }
-
-        Function<ExecutionPlan, Operation> operationCtor = plan -> new StartExecutionOperation(mc.jobId(), executionId);
-        Consumer<Collection<Object>> completionCallback =
-                responses -> onCompleteExecution(getResult("Execution", responses));
-
-        mc.setJobStatus(RUNNING);
-
-        mc.invokeOnParticipants(operationCtor, completionCallback, executionFailureCallback, false);
-
-        if (mc.jobConfig().getProcessingGuarantee() != NONE) {
-            mc.coordinationService().scheduleSnapshot(mc, executionId);
-        }
-    }
-
     private void handleTermination(@Nonnull TerminationMode mode) {
         // this method can be called multiple times to handle the termination, it must
         // be safe against it (idempotent).
@@ -552,7 +528,7 @@ public class MasterJobContext {
         }
     }
 
-    void cancelExecutionInvocations(long jobId, long executionId, TerminationMode mode, Runnable callback) {
+    void cancelExecutionInvocations(long jobId, long executionId, TerminationMode mode) {
         mc.nodeEngine().getExecutionService().execute(ExecutionService.ASYNC_EXECUTOR, () ->
                 mc.invokeOnParticipants(plan -> new TerminateExecutionOperation(jobId, executionId, mode),
                         responses -> {
@@ -560,9 +536,6 @@ public class MasterJobContext {
                                 // log errors
                                 logger.severe(mc.jobIdString() + ": some TerminateExecutionOperation invocations " +
                                         "failed, execution might remain stuck: " + responses);
-                            }
-                            if (callback != null) {
-                                callback.run();
                             }
                         }, null, true));
     }
@@ -791,7 +764,7 @@ public class MasterJobContext {
 
         void cancelInvocations(TerminationMode mode) {
             if (invocationsCancelled.compareAndSet(false, true)) {
-                cancelExecutionInvocations(mc.jobId(), executionId, mode, null);
+                cancelExecutionInvocations(mc.jobId(), executionId, mode);
             }
         }
     }

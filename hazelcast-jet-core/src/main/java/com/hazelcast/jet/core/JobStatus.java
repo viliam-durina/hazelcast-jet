@@ -32,6 +32,7 @@ public enum JobStatus {
 
     /**
      * The job is in the initialization phase on a new coordinator.
+     * TODO [viliam] drop this?
      */
     STARTING,
 

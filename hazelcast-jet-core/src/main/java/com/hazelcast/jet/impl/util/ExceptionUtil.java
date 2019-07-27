@@ -30,7 +30,6 @@ import com.hazelcast.jet.core.JobNotFoundException;
 import com.hazelcast.jet.core.TopologyChangedException;
 import com.hazelcast.jet.datamodel.Tuple3;
 import com.hazelcast.jet.impl.exception.EnteringPassiveClusterStateException;
-import com.hazelcast.jet.impl.operation.InitExecutionOperation;
 import com.hazelcast.jet.impl.operation.StartExecutionOperation;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.serialization.HazelcastSerializationException;
@@ -81,8 +80,7 @@ public final class ExceptionUtil {
                 || t instanceof HazelcastInstanceNotActiveException
                 || t instanceof EnteringPassiveClusterStateException
                 || t instanceof OperationTimeoutException
-                    && (t.getMessage().contains(InitExecutionOperation.class.getSimpleName())
-                        || t.getMessage().contains(StartExecutionOperation.class.getSimpleName()));
+                    && t.getMessage().contains(StartExecutionOperation.class.getSimpleName());
     }
 
     /**

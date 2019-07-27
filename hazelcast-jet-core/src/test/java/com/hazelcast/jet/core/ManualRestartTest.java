@@ -26,7 +26,6 @@ import com.hazelcast.jet.core.TestProcessors.MockPS;
 import com.hazelcast.jet.core.TestProcessors.NoOutputSourceP;
 import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.JobRepository;
-import com.hazelcast.jet.impl.execution.init.JetInitDataSerializerHook;
 import com.hazelcast.test.HazelcastSerialClassRunner;
 import org.junit.Before;
 import org.junit.Rule;
@@ -45,11 +44,8 @@ import java.util.stream.Collectors;
 import static com.hazelcast.jet.config.ProcessingGuarantee.EXACTLY_ONCE;
 import static com.hazelcast.jet.core.Edge.between;
 import static com.hazelcast.jet.core.JobStatus.RUNNING;
-import static com.hazelcast.jet.core.JobStatus.STARTING;
 import static com.hazelcast.jet.core.TestUtil.throttle;
 import static com.hazelcast.jet.core.processor.SinkProcessors.writeListP;
-import static com.hazelcast.test.PacketFiltersUtil.rejectOperationsBetween;
-import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -107,22 +103,23 @@ public class ManualRestartTest extends JetTestSupport {
         assertTrueEventually(() -> assertEquals(initCount, MockPS.initCount.get()));
     }
 
-    @Test
-    public void when_jobIsNotBeingExecuted_then_itCannotBeRestarted() {
-        // Given that the job execution has not started
-        rejectOperationsBetween(instances[0].getHazelcastInstance(), instances[1].getHazelcastInstance(),
-                JetInitDataSerializerHook.FACTORY_ID, singletonList(JetInitDataSerializerHook.INIT_EXECUTION_OP));
-
-        JetInstance client = createJetClient();
-        Job job = client.newJob(dag);
-
-        assertJobStatusEventually(job, STARTING);
-
-        // Then, the job cannot restart
-        exception.expect(IllegalStateException.class);
-        exception.expectMessage("Cannot RESTART");
-        job.restart();
-    }
+    // TODO [viliam] makes this test sense?
+//    @Test
+//    public void when_jobIsNotBeingExecuted_then_itCannotBeRestarted() {
+//        // Given that the job execution has not started
+//        rejectOperationsBetween(instances[0].getHazelcastInstance(), instances[1].getHazelcastInstance(),
+//                JetInitDataSerializerHook.FACTORY_ID, singletonList(JetInitDataSerializerHook.INIT_EXECUTION_OP));
+//
+//        JetInstance client = createJetClient();
+//        Job job = client.newJob(dag);
+//
+//        assertJobStatusEventually(job, STARTING);
+//
+//        // Then, the job cannot restart
+//        exception.expect(IllegalStateException.class);
+//        exception.expectMessage("Cannot RESTART");
+//        job.restart();
+//    }
 
     @Test
     public void when_jobIsCompleted_then_itCannotBeRestarted() {
