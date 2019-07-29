@@ -95,8 +95,8 @@ public class JobExecutionService {
                         }));
     }
 
-    public ExecutionContext getExecutionContext(long executionId) {
-        return executionContexts.get(executionId);
+    public ExecutionContext getOrCreateExecutionContext(long executionId) {
+        return executionContexts.computeIfAbsent(executionId, x -> new ExecutionContext(nodeEngine, executionId));
     }
 
     Map<Long, ExecutionContext> getExecutionContextsFor(Address member) {
@@ -205,22 +205,21 @@ public class JobExecutionService {
         }
 
         Set<Address> addresses = participants.stream().map(MemberInfo::getAddress).collect(toSet());
-        ExecutionContext created = new ExecutionContext(nodeEngine, taskletExecutionService,
-                jobId, executionId, coordinator, addresses);
+        ExecutionContext execCtx = new ExecutionContext(nodeEngine, executionId);
         try {
             ClassLoader jobCl = getClassLoader(plan.getJobConfig(), jobId);
-            com.hazelcast.jet.impl.util.Util.doWithClassLoader(jobCl, () -> created.initialize(plan));
+            com.hazelcast.jet.impl.util.Util.doWithClassLoader(jobCl,
+                    () -> execCtx.initialize(taskletExecutionService, jobId, coordinator, addresses, plan));
         } finally {
-            ExecutionContext oldContext = executionContexts.put(executionId, created);
+            ExecutionContext oldContext = executionContexts.put(executionId, execCtx);
             assert oldContext == null : "Duplicate ExecutionContext for execution " + Util.idToString(executionId);
         }
 
         // initial log entry with all of jobId, jobName, executionId
         logger.info("Execution plan for jobId=" + idToString(jobId)
-                + ", jobName=" + (created.jobName() != null ? '\'' + created.jobName() + '\'' : "null")
+                + ", jobName=" + (execCtx.jobName() != null ? '\'' + execCtx.jobName() + '\'' : "null")
                 + ", executionId=" + idToString(executionId) + " initialized");
 
-        ExecutionContext execCtx = assertExecutionContext(coordinator, jobId, executionId, "ExecuteJobOperation");
         logger.info("Start execution of " + execCtx.jobNameAndExecutionId() + " from coordinator " + coordinator);
         return execCtx.beginExecution()
               .whenComplete(withTryCatch(logger, (i, e) -> {
@@ -329,7 +328,7 @@ public class JobExecutionService {
     /**
      * Completes and cleans up execution of the given job
      */
-    public void completeExecution(long executionId, Throwable error) {
+    private void completeExecution(long executionId, Throwable error) {
         ExecutionContext executionContext = executionContexts.remove(executionId);
         if (executionContext != null) {
             JetClassLoader removed = classLoaders.remove(executionContext.jobId());

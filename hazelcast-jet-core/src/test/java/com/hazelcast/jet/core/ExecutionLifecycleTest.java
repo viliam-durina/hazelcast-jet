@@ -396,15 +396,18 @@ public class ExecutionLifecycleTest extends TestInClusterSupport {
                 jobId, executionId, localAddress, memberListVersion, participants, executionPlan
         );
 
-        ExecutionContext executionContext = jetService.getJobExecutionService().getExecutionContext(executionId);
+        ExecutionContext executionContext = jetService.getJobExecutionService().getOrCreateExecutionContext(executionId);
         executionContext.terminateExecution(null);
 
         // When
         CompletableFuture<Void> future = executionContext.beginExecution();
 
         // Then
-        expectedException.expect(CancellationException.class);
-        future.join();
+        try {
+            future.join();
+        } catch (Exception e) {
+            assertExceptionInCauses(new CancellationException(), e);
+        }
     }
 
     @Test

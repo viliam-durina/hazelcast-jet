@@ -80,7 +80,7 @@ public class Networking {
     private void handleStreamPacket(Packet packet) throws IOException {
         byte[] packetData = packet.toByteArray();
         long executionId = Bits.readLong(packetData, 0, bigEndian);
-        ExecutionContext executionContext = jobExecutionService.getExecutionContext(executionId);
+        ExecutionContext executionContext = jobExecutionService.getOrCreateExecutionContext(executionId);
         executionContext.handlePacket(packetData, packet.getConn().getEndPoint());
     }
 

@@ -17,6 +17,7 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.metrics.MetricsRegistry;
+import com.hazelcast.internal.util.concurrent.MPSCQueue;
 import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.core.Processor;
 import com.hazelcast.jet.core.ProcessorSupplier;
@@ -35,18 +36,24 @@ import com.hazelcast.nio.BufferObjectDataInput;
 import com.hazelcast.spi.NodeEngine;
 import com.hazelcast.spi.impl.NodeEngineImpl;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import static com.hazelcast.jet.Util.idToString;
 import static com.hazelcast.jet.impl.util.Util.createObjectDataInput;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 
@@ -57,13 +64,21 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class ExecutionContext {
 
-    private final long jobId;
+    private static final Function<ReceiverKey, MPSCQueue<BufferObjectDataInput>> CREATE_RECEIVER_QUEUE_FUNCTION =
+            x -> new MPSCQueue<>(null);
+
+    private final NodeEngine nodeEngine;
     private final long executionId;
-    private final Address coordinator;
-    private final Set<Address> participants;
     private final Object executionLock = new Object();
     private final ILogger logger;
-    private String jobName;
+
+    private volatile long jobId;
+    private volatile Address coordinator;
+    private volatile Set<Address> participants = emptySet();
+
+    private String jobName = "?";
+
+    private final Map<ReceiverKey, MPSCQueue<BufferObjectDataInput>> receiverQueues = new ConcurrentHashMap<>();
 
     // dest vertex id --> dest ordinal --> sender addr --> receiver tasklet
     private Map<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> receiverMap = emptyMap();
@@ -82,29 +97,25 @@ public class ExecutionContext {
     // future which can only be used to cancel the local execution.
     private final CompletableFuture<Void> cancellationFuture = new CompletableFuture<>();
 
-    private final NodeEngine nodeEngine;
-    private final TaskletExecutionService taskletExecService;
+    private TaskletExecutionService taskletExecService;
     private SnapshotContext snapshotContext;
     private JobConfig jobConfig;
 
-    public ExecutionContext(NodeEngine nodeEngine, TaskletExecutionService taskletExecService,
-                            long jobId, long executionId, Address coordinator, Set<Address> participants) {
-        this.jobId = jobId;
-        this.executionId = executionId;
-        this.coordinator = coordinator;
-        this.participants = participants;
-        this.taskletExecService = taskletExecService;
+    public ExecutionContext(NodeEngine nodeEngine, long executionId) {
         this.nodeEngine = nodeEngine;
-
+        this.executionId = executionId;
         logger = nodeEngine.getLogger(getClass());
     }
 
-    public ExecutionContext initialize(ExecutionPlan plan) {
+    public void initialize(TaskletExecutionService taskletExecService, long jobId, Address coordinator,
+                           Set<Address> participants, ExecutionPlan plan) {
+        this.jobId = jobId;
+        this.coordinator = coordinator;
+        this.participants = participants;
+        this.taskletExecService = taskletExecService;
+
         jobConfig = plan.getJobConfig();
-        jobName = jobConfig.getName();
-        if (jobName == null) {
-            jobName = idToString(jobId);
-        }
+        jobName = jobConfig.getName() != null ? jobConfig.getName() : idToString(jobId);
         // Must be populated early, so all processor suppliers are
         // available to be completed in the case of init failure
         procSuppliers = unmodifiableList(plan.getProcessorSuppliers());
@@ -119,7 +130,19 @@ public class ExecutionContext {
         receiverMap = unmodifiableMap(plan.getReceiverMap());
         senderMap = unmodifiableMap(plan.getSenderMap());
         tasklets = plan.getTasklets();
-        return this;
+
+        int receiverCount = 0;
+        for (Entry<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> vertexIdEntry : receiverMap.entrySet()) {
+            for (Entry<Integer, Map<Address, ReceiverTasklet>> ordinalEntry : vertexIdEntry.getValue().entrySet()) {
+                for (Entry<Address, ReceiverTasklet> senderEntry : ordinalEntry.getValue().entrySet()) {
+                    ReceiverKey key = new ReceiverKey(vertexIdEntry.getKey(), ordinalEntry.getKey(), senderEntry.getKey());
+                    senderEntry.getValue().initializeQueue(receiverQueues.computeIfAbsent(key, CREATE_RECEIVER_QUEUE_FUNCTION));
+                    receiverCount++;
+                }
+            }
+        }
+        assert receiverQueues.size() == receiverCount : "receiverQueues.size() = " + receiverQueues.size()
+                + ", count in receiverMap=" + receiverCount;
     }
 
     /**
@@ -232,10 +255,9 @@ public class ExecutionContext {
         in.skipBytes(Bits.LONG_SIZE_IN_BYTES); // skip the executionId
         int vertexId = in.readInt();
         int ordinal = in.readInt();
-        receiverMap.get(vertexId)
-                   .get(ordinal)
-                   .get(sender)
-                   .receiveStreamPacket(in);
+        receiverQueues
+                .computeIfAbsent(new ReceiverKey(vertexId, ordinal, sender), CREATE_RECEIVER_QUEUE_FUNCTION)
+                .add(in);
     }
 
     public boolean hasParticipant(Address member) {
@@ -269,5 +291,41 @@ public class ExecutionContext {
     @Nullable
     public String jobName() {
         return jobName;
+    }
+
+    private static class ReceiverKey {
+        final int vertexId;
+        final int ordinal;
+        final Address sender;
+
+        private ReceiverKey(int vertexId, int ordinal, @Nonnull Address sender) {
+            this.vertexId = vertexId;
+            this.ordinal = ordinal;
+            this.sender = sender;
+        }
+
+        @Override
+        public String toString() {
+            return "ReceiverKey{vertexId=" + vertexId + ", ordinal=" + ordinal + ", sender=" + sender + '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ReceiverKey that = (ReceiverKey) o;
+            return vertexId == that.vertexId &&
+                    ordinal == that.ordinal &&
+                    sender.equals(that.sender);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(vertexId, ordinal, sender);
+        }
     }
 }

@@ -75,7 +75,7 @@ public class ReceiverTasklet implements Tasklet {
     private final double flowControlPeriodNs;
     private final ILogger logger;
 
-    private final MPSCQueue<BufferObjectDataInput> incoming = new MPSCQueue<>(null);
+    private MPSCQueue<BufferObjectDataInput> incoming;
     private final ProgressTracker tracker = new ProgressTracker();
     private final ArrayDeque<ObjWithPtionIdAndSize> inbox = new ArrayDeque<>();
     private final OutboundCollector collector;
@@ -110,6 +110,10 @@ public class ReceiverTasklet implements Tasklet {
         this.receiveWindowCompressed = INITIAL_RECEIVE_WINDOW_COMPRESSED;
     }
 
+    void initializeQueue(MPSCQueue<BufferObjectDataInput> queue) {
+        this.incoming = queue;
+    }
+
     @Override @Nonnull
     public ProgressState call() {
         if (receptionDone) {
@@ -141,6 +145,7 @@ public class ReceiverTasklet implements Tasklet {
         return tracker.toProgressState();
     }
 
+    // available for test only
     void receiveStreamPacket(BufferObjectDataInput packetInput) {
         incoming.add(packetInput);
     }
