@@ -19,7 +19,7 @@ package com.hazelcast.jet.impl.operation;
 import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.JobExecutionService;
 import com.hazelcast.jet.impl.TerminationMode;
-import com.hazelcast.jet.impl.execution.ExecutionContextImpl;
+import com.hazelcast.jet.impl.execution.ExecutionContext;
 import com.hazelcast.jet.impl.execution.init.JetInitDataSerializerHook;
 import com.hazelcast.nio.Address;
 import com.hazelcast.nio.ObjectDataInput;
@@ -56,7 +56,7 @@ public class TerminateExecutionOperation extends AbstractJobOperation {
         JetService service = getService();
         JobExecutionService executionService = service.getJobExecutionService();
         Address callerAddress = getCallerAddress();
-        ExecutionContextImpl ctx = executionService.assertExecutionContext(callerAddress, jobId(), executionId,
+        ExecutionContext ctx = executionService.assertExecutionContext(callerAddress, jobId(), executionId,
                 getClass().getSimpleName());
         ctx.terminateExecution(mode);
     }

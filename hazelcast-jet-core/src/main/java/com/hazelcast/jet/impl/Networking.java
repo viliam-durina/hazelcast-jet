@@ -17,7 +17,7 @@
 package com.hazelcast.jet.impl;
 
 import com.hazelcast.internal.serialization.InternalSerializationService;
-import com.hazelcast.jet.impl.execution.ExecutionContextImpl;
+import com.hazelcast.jet.impl.execution.ExecutionContext;
 import com.hazelcast.jet.impl.execution.SenderTasklet;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.Address;
@@ -80,7 +80,7 @@ public class Networking {
     private void handleStreamPacket(Packet packet) throws IOException {
         byte[] packetData = packet.toByteArray();
         long executionId = Bits.readLong(packetData, 0, bigEndian);
-        ExecutionContextImpl executionContext = jobExecutionService.getExecutionContext(executionId);
+        ExecutionContext executionContext = jobExecutionService.getExecutionContext(executionId);
         executionContext.handlePacket(packetData, packet.getConn().getEndPoint());
     }
 
@@ -118,7 +118,7 @@ public class Networking {
     private byte[] createFlowControlPacket(Address member) throws IOException {
         try (BufferObjectDataOutput out = createObjectDataOutput(nodeEngine)) {
             final boolean[] hasData = {false};
-            Map<Long, ExecutionContextImpl> executionContexts = jobExecutionService.getExecutionContextsFor(member);
+            Map<Long, ExecutionContext> executionContexts = jobExecutionService.getExecutionContextsFor(member);
             out.writeInt(executionContexts.size());
             executionContexts.forEach((execId, exeCtx) -> uncheckRun(() -> {
                 out.writeLong(execId);

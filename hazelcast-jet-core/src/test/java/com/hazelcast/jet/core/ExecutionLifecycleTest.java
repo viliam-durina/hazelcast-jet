@@ -35,7 +35,7 @@ import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.JobResult;
 import com.hazelcast.jet.impl.TerminationMode;
 import com.hazelcast.jet.impl.exception.JobTerminateRequestedException;
-import com.hazelcast.jet.impl.execution.ExecutionContextImpl;
+import com.hazelcast.jet.impl.execution.ExecutionContext;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlan;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlanBuilder;
 import com.hazelcast.nio.Address;
@@ -396,7 +396,7 @@ public class ExecutionLifecycleTest extends TestInClusterSupport {
                 jobId, executionId, localAddress, memberListVersion, participants, executionPlan
         );
 
-        ExecutionContextImpl executionContext = jetService.getJobExecutionService().getExecutionContext(executionId);
+        ExecutionContext executionContext = jetService.getJobExecutionService().getExecutionContext(executionId);
         executionContext.terminateExecution(null);
 
         // When

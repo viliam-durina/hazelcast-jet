@@ -25,7 +25,7 @@ import com.hazelcast.jet.Util;
 import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.core.TopologyChangedException;
 import com.hazelcast.jet.impl.deployment.JetClassLoader;
-import com.hazelcast.jet.impl.execution.ExecutionContextImpl;
+import com.hazelcast.jet.impl.execution.ExecutionContext;
 import com.hazelcast.jet.impl.execution.SenderTasklet;
 import com.hazelcast.jet.impl.execution.TaskletExecutionService;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlan;
@@ -66,7 +66,7 @@ public class JobExecutionService {
     private final Set<Long> executionContextJobIds = newSetFromMap(new ConcurrentHashMap<>());
 
     // key: executionId
-    private final ConcurrentMap<Long, ExecutionContextImpl> executionContexts = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, ExecutionContext> executionContexts = new ConcurrentHashMap<>();
 
     // The type of classLoaders field is CHM and not ConcurrentMap because we
     // rely on specific semantics of computeIfAbsent. ConcurrentMap.computeIfAbsent
@@ -95,18 +95,18 @@ public class JobExecutionService {
                         }));
     }
 
-    public ExecutionContextImpl getExecutionContext(long executionId) {
+    public ExecutionContext getExecutionContext(long executionId) {
         return executionContexts.get(executionId);
     }
 
-    Map<Long, ExecutionContextImpl> getExecutionContextsFor(Address member) {
+    Map<Long, ExecutionContext> getExecutionContextsFor(Address member) {
         return executionContexts.entrySet().stream()
                          .filter(entry -> entry.getValue().hasParticipant(member))
                          .collect(toMap(Entry::getKey, Entry::getValue));
     }
 
     Map<Integer, Map<Integer, Map<Address, SenderTasklet>>> getSenderMap(long executionId) {
-        ExecutionContextImpl ctx = executionContexts.get(executionId);
+        ExecutionContext ctx = executionContexts.get(executionId);
         return ctx != null ? ctx.senderMap() : null;
     }
 
@@ -150,7 +150,7 @@ public class JobExecutionService {
      * Cancel job execution and complete execution without waiting for coordinator
      * to send CompleteOperation.
      */
-    private void cancelAndComplete(ExecutionContextImpl exeCtx, String message, Throwable t) {
+    private void cancelAndComplete(ExecutionContext exeCtx, String message, Throwable t) {
         try {
             exeCtx.terminateExecution(null).whenComplete(withTryCatch(logger, (r, e) -> {
                 long executionId = exeCtx.executionId();
@@ -185,7 +185,7 @@ public class JobExecutionService {
         failIfNotRunning();
 
         if (!executionContextJobIds.add(jobId)) {
-            ExecutionContextImpl current = executionContexts.get(executionId);
+            ExecutionContext current = executionContexts.get(executionId);
             if (current != null) {
                 throw new IllegalStateException(String.format(
                         "Execution context for %s for coordinator %s already exists for coordinator %s",
@@ -205,13 +205,13 @@ public class JobExecutionService {
         }
 
         Set<Address> addresses = participants.stream().map(MemberInfo::getAddress).collect(toSet());
-        ExecutionContextImpl created = new ExecutionContextImpl(nodeEngine, taskletExecutionService,
+        ExecutionContext created = new ExecutionContext(nodeEngine, taskletExecutionService,
                 jobId, executionId, coordinator, addresses);
         try {
             ClassLoader jobCl = getClassLoader(plan.getJobConfig(), jobId);
             com.hazelcast.jet.impl.util.Util.doWithClassLoader(jobCl, () -> created.initialize(plan));
         } finally {
-            ExecutionContextImpl oldContext = executionContexts.put(executionId, created);
+            ExecutionContext oldContext = executionContexts.put(executionId, created);
             assert oldContext == null : "Duplicate ExecutionContext for execution " + Util.idToString(executionId);
         }
 
@@ -220,7 +220,7 @@ public class JobExecutionService {
                 + ", jobName=" + (created.jobName() != null ? '\'' + created.jobName() + '\'' : "null")
                 + ", executionId=" + idToString(executionId) + " initialized");
 
-        ExecutionContextImpl execCtx = assertExecutionContext(coordinator, jobId, executionId, "ExecuteJobOperation");
+        ExecutionContext execCtx = assertExecutionContext(coordinator, jobId, executionId, "ExecuteJobOperation");
         logger.info("Start execution of " + execCtx.jobNameAndExecutionId() + " from coordinator " + coordinator);
         return execCtx.beginExecution()
               .whenComplete(withTryCatch(logger, (i, e) -> {
@@ -294,8 +294,8 @@ public class JobExecutionService {
         }
     }
 
-    public ExecutionContextImpl assertExecutionContext(Address callerAddress, long jobId, long executionId,
-                                                       String callerOpName) {
+    public ExecutionContext assertExecutionContext(Address callerAddress, long jobId, long executionId,
+                                                   String callerOpName) {
         Address masterAddress = nodeEngine.getMasterAddress();
         if (!callerAddress.equals(masterAddress)) {
             failIfNotRunning();
@@ -307,7 +307,7 @@ public class JobExecutionService {
 
         failIfNotRunning();
 
-        ExecutionContextImpl executionContext = executionContexts.get(executionId);
+        ExecutionContext executionContext = executionContexts.get(executionId);
         if (executionContext == null) {
             // TODO [viliam] check if this works if SnapshotOperation is received before
             //  StartExecutionOperation is received.
@@ -330,7 +330,7 @@ public class JobExecutionService {
      * Completes and cleans up execution of the given job
      */
     public void completeExecution(long executionId, Throwable error) {
-        ExecutionContextImpl executionContext = executionContexts.remove(executionId);
+        ExecutionContext executionContext = executionContexts.remove(executionId);
         if (executionContext != null) {
             JetClassLoader removed = classLoaders.remove(executionContext.jobId());
             try {
