@@ -39,6 +39,7 @@ import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.core.ProcessorSupplier;
 import com.hazelcast.jet.core.processor.Processors;
 import com.hazelcast.jet.core.processor.SourceProcessors;
+import com.hazelcast.jet.datamodel.Tuple2;
 import com.hazelcast.jet.function.FunctionEx;
 import com.hazelcast.jet.function.PredicateEx;
 import com.hazelcast.jet.pipeline.JournalInitialPosition;
@@ -63,16 +64,17 @@ import static com.hazelcast.client.HazelcastClient.newHazelcastClient;
 import static com.hazelcast.jet.Traversers.traverseStream;
 import static com.hazelcast.jet.Util.entry;
 import static com.hazelcast.jet.core.BroadcastKey.broadcastKey;
+import static com.hazelcast.jet.datamodel.Tuple2.tuple2;
 import static com.hazelcast.jet.impl.execution.init.CustomClassLoadedObject.deserializeWithCustomClassLoader;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.peel;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
-import static com.hazelcast.jet.impl.util.LoggingUtil.logFinest;
-import static com.hazelcast.jet.impl.util.Util.arrayIndexOf;
 import static com.hazelcast.jet.impl.util.ImdgUtil.asClientConfig;
 import static com.hazelcast.jet.impl.util.ImdgUtil.asXmlString;
-import static com.hazelcast.jet.impl.util.Util.checkSerializable;
 import static com.hazelcast.jet.impl.util.ImdgUtil.maybeUnwrapImdgFunction;
 import static com.hazelcast.jet.impl.util.ImdgUtil.maybeUnwrapImdgPredicate;
+import static com.hazelcast.jet.impl.util.LoggingUtil.logFinest;
+import static com.hazelcast.jet.impl.util.Util.arrayIndexOf;
+import static com.hazelcast.jet.impl.util.Util.checkSerializable;
 import static com.hazelcast.jet.impl.util.Util.processorToPartitions;
 import static com.hazelcast.jet.pipeline.JournalInitialPosition.START_FROM_CURRENT;
 import static java.util.stream.Collectors.groupingBy;
@@ -118,7 +120,7 @@ public final class StreamEventJournalP<E, T> extends AbstractProcessor {
     private int currentPartitionIndex = -1;
     private int resultSetPosition;
 
-    private Traverser<Entry<BroadcastKey<Integer>, long[]>> snapshotTraverser;
+    private Traverser<Entry<BroadcastKey<Integer>, Tuple2<Long, Long>>> snapshotTraverser;
     private Traverser<Object> traverser = Traversers.empty();
 
     StreamEventJournalP(
@@ -228,7 +230,7 @@ public final class StreamEventJournalP<E, T> extends AbstractProcessor {
                             broadcastKey(partitionIds[pIdx]),
                             // Always use partition index of 0, treating all the partitions the
                             // same for coalescing purposes.
-                            new long[] {emitOffsets[pIdx], eventTimeMapper.getWatermark(0)})));
+                            tuple2(emitOffsets[pIdx], eventTimeMapper.getWatermark(0)))));
         }
         boolean done = emitFromTraverserToSnapshot(snapshotTraverser);
         if (done) {
@@ -244,8 +246,8 @@ public final class StreamEventJournalP<E, T> extends AbstractProcessor {
         @SuppressWarnings("unchecked")
         int partitionId = ((BroadcastKey<Integer>) key).key();
         int partitionIndex = arrayIndexOf(partitionId, partitionIds);
-        long offset = ((long[]) value)[0];
-        long wm = ((long[]) value)[1];
+        long offset = ((Tuple2<Long, Long>) value).f0();
+        long wm = ((Tuple2<Long, Long>) value).f1();
         if (partitionIndex >= 0) {
             readOffsets[partitionIndex] = offset;
             emitOffsets[partitionIndex] = offset;

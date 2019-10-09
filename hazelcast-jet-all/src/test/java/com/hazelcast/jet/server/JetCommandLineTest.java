@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import static com.hazelcast.jet.Util.idToString;
 import static com.hazelcast.jet.pipeline.JournalInitialPosition.START_FROM_OLDEST;
 import static com.hazelcast.jet.server.JetCommandLine.runCommandLine;
 import static org.junit.Assert.assertEquals;
@@ -173,6 +174,19 @@ public class JetCommandLineTest extends JetTestSupport {
 
         // Then
         assertJobStatusEventually(job, JobStatus.FAILED);
+    }
+
+    @Test
+    public void test_printSnapshot() {
+        // Given
+        Job job = newJob();
+
+        // When
+        run("printSnapshot", "-j", idToString(job.getId()));
+
+        // Then
+        System.out.println(captureOut());
+//        assertJobStatusEventually(job, JobStatus.FAILED);
     }
 
     @Test

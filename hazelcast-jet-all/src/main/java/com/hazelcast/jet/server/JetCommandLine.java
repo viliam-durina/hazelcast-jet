@@ -29,10 +29,13 @@ import com.hazelcast.jet.JobStateSnapshot;
 import com.hazelcast.jet.Util;
 import com.hazelcast.jet.core.JobNotFoundException;
 import com.hazelcast.jet.core.JobStatus;
+import com.hazelcast.jet.datamodel.Tuple3;
+import com.hazelcast.jet.function.ConsumerEx;
 import com.hazelcast.jet.impl.ClusterMetadata;
 import com.hazelcast.jet.impl.JetClientInstanceImpl;
 import com.hazelcast.jet.impl.JobSummary;
 import com.hazelcast.jet.impl.config.ConfigProvider;
+import com.hazelcast.jet.impl.deployment.JetClassLoader;
 import com.hazelcast.jet.server.JetCommandLine.JetVersionProvider;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -51,13 +54,15 @@ import picocli.CommandLine.RunAll;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -242,6 +247,56 @@ public class JetCommandLine implements Runnable {
     }
 
     @Command(
+            description = "Prints the contents of a job state snapshot. Either -j or -s must be specified."
+    )
+    public void printSnapshot(
+            @Mixin(name = "verbosity") Verbosity verbosity,
+            @Option(names = "-j",
+                    paramLabel = "<job name or id>",
+                    description = "Name or ID of the job to view snapshot for"
+            ) String jobName,
+            @Option(names = "-s",
+                    paramLabel = "<exported snapshot name>",
+                    description = "Name of the exported snapshot to view"
+            ) String snapshotName,
+            @Option(names = "--jar",
+                    paramLabel = "<jar file with job resources>",
+                    description = "JAR file name to load job resources from"
+            ) String jarName
+    ) throws IOException {
+        if (jobName == null ^ snapshotName != null) {
+            throw new JetException("Use one of -j or -s options");
+        }
+        if (jarName != null && snapshotName == null) {
+            throw new JetException("--jar is only useful with -s option");
+        }
+        runWithJet(verbosity, jet -> {
+            String mapName;
+            ClassLoader cl = null;
+            if (jobName != null) {
+                Job job = getJob(jet, jobName);
+                mapName = SnapshotViewerUtil.getActiveSnapshotMap(jet, job.getId());
+                cl = SnapshotViewerUtil.createJobClassLoader(jet, job.getId());
+            } else {
+                mapName = SnapshotViewerUtil.getExportedSnapshotMap(snapshotName);
+                if (jarName != null) {
+                    cl = new URLClassLoader(new URL[] {Paths.get(jarName).toUri().toURL()});
+                }
+            }
+            try {
+                for (Tuple3<String, String, String> entry :
+                        SnapshotViewerUtil.getSnapshotEntries(jet, mapName, cl)) {
+                    println(entry.toString());
+                }
+            } finally {
+                if (cl instanceof JetClassLoader) {
+                    ((JetClassLoader) cl).shutdown();
+                }
+            }
+        });
+    }
+
+    @Command(
             name = "save-snapshot",
             description = "Exports a named snapshot from a job and optionally cancels it"
     )
@@ -412,7 +467,7 @@ public class JetCommandLine implements Runnable {
         });
     }
 
-    private void runWithJet(Verbosity verbosity, Consumer<JetInstance> consumer) throws IOException {
+    private void runWithJet(Verbosity verbosity, ConsumerEx<JetInstance> consumer) throws IOException {
         this.verbosity.merge(verbosity);
         configureLogging();
         JetInstance jet = getJetClient();
