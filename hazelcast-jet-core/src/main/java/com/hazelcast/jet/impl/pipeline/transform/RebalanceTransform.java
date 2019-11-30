@@ -46,6 +46,7 @@ public class RebalanceTransform<T> extends AbstractTransform {
                 mapUsingServiceP(serviceFactory, (MutableInteger state, JetEvent item) ->
                         jetEvent(item.payload(), state.getAndInc(), item.timestamp())));
         p.addEdges(this, pv.v, e -> {
+            e.unicast();
             if (global) {
                 e.distributed();
             }

@@ -22,6 +22,7 @@ import com.hazelcast.function.BiPredicateEx;
 import com.hazelcast.function.FunctionEx;
 import com.hazelcast.function.PredicateEx;
 import com.hazelcast.function.ToLongFunctionEx;
+import com.hazelcast.instance.impl.HazelcastInstanceImpl;
 import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.aggregate.AggregateOperation;
 import com.hazelcast.jet.aggregate.AggregateOperation1;
@@ -301,17 +302,19 @@ public class JetEventFunctionAdapter {
 
         @Override
         protected Outbox wrapOutbox(Outbox outbox, Context context) {
-            return new AdaptingOutbox(outbox, context.globalProcessorIndex());
+            HazelcastInstanceImpl hzInst = (HazelcastInstanceImpl) context.jetInstance().getHazelcastInstance();
+            int partitionId = hzInst.node.getPartitionService().getPartitionId(context.globalProcessorIndex());
+            return new AdaptingOutbox(outbox, partitionId);
         }
     }
 
     private static final class AdaptingOutbox implements Outbox {
         private final Outbox wrapped;
-        private final Integer key;
+        private final int partitionId;
 
-        AdaptingOutbox(Outbox wrapped, Integer key) {
+        AdaptingOutbox(Outbox wrapped, int partitionId) {
             this.wrapped = wrapped;
-            this.key = key;
+            this.partitionId = partitionId;
         }
 
         @Override
@@ -345,7 +348,7 @@ public class JetEventFunctionAdapter {
         }
 
         private JetEvent wrap(Object item) {
-            return jetEvent(item, key, JetEvent.NO_TIMESTAMP);
+            return jetEvent(item, partitionId, JetEvent.NO_TIMESTAMP);
         }
     }
 }
