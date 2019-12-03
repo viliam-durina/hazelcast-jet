@@ -16,6 +16,8 @@
 
 package com.hazelcast.jet.impl;
 
+import com.hazelcast.jet.core.Partitioner;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
@@ -29,6 +31,8 @@ import java.util.Objects;
 public final class JetEvent<T> {
     public static final long NO_TIMESTAMP = Long.MIN_VALUE;
     public static final int UNINITIALIZED_PARTITION_ID = -1;
+
+    public static final Partitioner<JetEvent<?>> JET_EVENT_PARTITIONER = (item, partitionCount) -> item.partitionId;
 
     private final T payload;
     private int partitionId;

@@ -56,6 +56,7 @@ public class WordCount {
         Pattern delimiter = Pattern.compile("\\W+");
         Pipeline p = Pipeline.create();
         p.readFrom(Sources.<Long, String>map(BOOK_LINES))
+         .rebalanceLocal() // to better parallelize the next step
          .flatMap(e -> traverseArray(delimiter.split(e.getValue().toLowerCase())))
          .filter(word -> !word.isEmpty())
          .groupingKey(wholeItem())

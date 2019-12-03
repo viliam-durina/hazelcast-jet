@@ -44,7 +44,7 @@ public class RebalanceTransform<T> extends AbstractTransform {
         ServiceFactory<MutableInteger> serviceFactory = ServiceFactory.withCreateFn(jet -> new MutableInteger());
         PlannerVertex pv = p.addVertex(this, name(), localParallelism(),
                 mapUsingServiceP(serviceFactory, (MutableInteger state, JetEvent item) ->
-                        jetEvent(item.payload(), state.getAndInc(), item.timestamp())));
+                        jetEvent(item.payload(), (Integer) state.getAndInc(), item.timestamp())));
         p.addEdges(this, pv.v, e -> {
             e.unicast();
             if (global) {
