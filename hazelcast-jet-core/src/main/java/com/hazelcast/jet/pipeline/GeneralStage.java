@@ -116,6 +116,7 @@ public interface GeneralStage<T> extends Stage {
      * the object's state. The state object will be included in the state
      * snapshot, so it survives job restarts. For this reason it must be
      * serializable.
+     * TODO [viliam] stress that this is non-parallel
      * <p>
      * This sample takes a stream of {@code long} numbers representing request
      * latencies, computes the cumulative latency of all requests so far, and
