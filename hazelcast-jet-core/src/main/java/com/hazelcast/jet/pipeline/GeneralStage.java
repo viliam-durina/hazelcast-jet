@@ -116,6 +116,7 @@ public interface GeneralStage<T> extends Stage {
      * the object's state. The state object will be included in the state
      * snapshot, so it survives job restarts. For this reason it must be
      * serializable.
+     * TODO [viliam] stress that this is non-parallel
      * <p>
      * This sample takes a stream of {@code long} numbers representing request
      * latencies, computes the cumulative latency of all requests so far, and
@@ -869,6 +870,35 @@ public interface GeneralStage<T> extends Stage {
      */
     @Nonnull
     StreamStage<T> addTimestamps(@Nonnull ToLongFunctionEx<? super T> timestampFn, long allowedLag);
+
+    /**
+     * Partitions the items uniformly into partitions. Each processor in the
+     * downstream stage will receive equal number of items.
+     *
+     * <p>Use this stage if you have few or just one key and need more
+     * parallelism. Or if you have skewed data: many instances of one key and
+     * few instances of other keys.
+     *
+     * <p>The opera
+     *
+     * <p>Only local processors will be considered.
+     *
+     * TODO [viliam]
+     *
+     * @return the newly attached stage
+     * @since 4.0
+     */
+    @Nonnull
+    GeneralStage<T> rebalanceLocal();
+
+    /**
+     * TODO [viliam]
+     *
+     * @return the newly attached stage
+     * @since 4.0
+     */
+    @Nonnull
+    GeneralStage<T> rebalanceGlobal();
 
     /**
      * Attaches a sink stage, one that accepts data but doesn't emit any. The

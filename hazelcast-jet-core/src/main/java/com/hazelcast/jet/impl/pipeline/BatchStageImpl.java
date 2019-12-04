@@ -45,16 +45,12 @@ import static java.util.Collections.singletonList;
 
 public class BatchStageImpl<T> extends ComputeStageImplBase<T> implements BatchStage<T> {
 
-    BatchStageImpl(@Nonnull Transform transform, @Nonnull PipelineImpl pipeline) {
-        super(transform, DO_NOT_ADAPT, pipeline, true);
-    }
-
     /**
      * This constructor exists just to match the shape of the functional interface
      * {@code GeneralHashJoinBuilder.CreateOutStageFn}
      */
-    public BatchStageImpl(@Nonnull Transform transform, FunctionAdapter ignored, @Nonnull PipelineImpl pipeline) {
-        this(transform, pipeline);
+    public BatchStageImpl(@Nonnull Transform transform, @Nonnull PipelineImpl pipeline) {
+        super(transform, pipeline, true);
     }
 
     @Nonnull @Override
@@ -157,6 +153,16 @@ public class BatchStageImpl<T> extends ComputeStageImplBase<T> implements BatchS
     @Nonnull @Override
     public BatchStage<T> merge(@Nonnull BatchStage<? extends T> other) {
         return attachMerge(other);
+    }
+
+    @Nonnull @Override
+    public BatchStage<T> rebalanceGlobal() {
+        return attachRebalance(true);
+    }
+
+    @Nonnull @Override
+    public BatchStage<T> rebalanceLocal() {
+        return attachRebalance(false);
     }
 
     @Nonnull @Override

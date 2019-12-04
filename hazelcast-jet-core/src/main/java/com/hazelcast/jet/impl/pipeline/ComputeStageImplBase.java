@@ -25,6 +25,7 @@ import com.hazelcast.function.ToLongFunctionEx;
 import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.function.TriFunction;
+import com.hazelcast.jet.impl.JetEvent;
 import com.hazelcast.jet.impl.pipeline.transform.AbstractTransform;
 import com.hazelcast.jet.impl.pipeline.transform.FlatMapStatefulTransform;
 import com.hazelcast.jet.impl.pipeline.transform.FlatMapTransform;
@@ -90,16 +91,24 @@ public abstract class ComputeStageImplBase<T> extends AbstractStage {
 
     @Nonnull
     public StreamStage<T> addTimestamps(@Nonnull ToLongFunctionEx<? super T> timestampFn, long allowedLateness) {
-        checkTrue(fnAdapter.equals(DO_NOT_ADAPT), "This stage already has timestamps assigned to it");
+        checkTrue(!transform.hasTimestamps(), "This stage already has timestamps assigned to it");
+
         checkSerializable(timestampFn, "timestampFn");
         TimestampTransform<T> tsTransform = new TimestampTransform<>(transform, eventTimePolicy(
                 timestampFn,
-                (item, ts) -> jetEvent(ts, item),
+                fnAdapter == DO_NOT_ADAPT
+                        ? (item, ts) -> jetEvent(item, null, ts)
+                        : (item, ts) -> jetEvent(((JetEvent) item).payload(), ((JetEvent) item).partitionId(), ts),
                 limitingLag(allowedLateness),
                 0, 0, DEFAULT_IDLE_TIMEOUT
         ));
         pipelineImpl.connect(transform, tsTransform);
         return new StreamStageImpl<>(tsTransform, ADAPT_TO_JET_EVENT, pipelineImpl);
+    }
+
+    @SuppressWarnings("unchecked")
+    <RET> RET attachRebalance(boolean global) {
+        return (RET) attach(new RebalanceTransform<>(this.transform, global));
     }
 
     @Nonnull
@@ -198,6 +207,7 @@ public abstract class ComputeStageImplBase<T> extends AbstractStage {
         checkSerializable(keyFn, "keyFn");
         checkSerializable(createFn, "createFn");
         checkSerializable(flatMapFn, "mapFn");
+        // TODO [viliam] fix the check - that we adapt doesn't mean we have timestamps
         if (ttl > 0 && fnAdapter == DO_NOT_ADAPT) {
             throw new IllegalStateException("Cannot use time-to-live on a non-timestamped stream");
         }
@@ -417,9 +427,15 @@ public abstract class ComputeStageImplBase<T> extends AbstractStage {
     }
 
     @Nonnull
+    <RET> RET attach(@Nonnull AbstractTransform transform) {
+        return attach(transform, fnAdapter);
+    }
+
+    @Nonnull
     abstract <RET> RET attach(@Nonnull AbstractTransform transform, @Nonnull FunctionAdapter fnAdapter);
 
     static void ensureJetEvents(@Nonnull ComputeStageImplBase stage, @Nonnull String name) {
+        // TODO [viliam] fix the check - that we adapt doesn't mean we have timestamps
         if (stage.fnAdapter != ADAPT_TO_JET_EVENT) {
             throw new IllegalStateException(
                     name + " is missing a timestamp definition. Call" +

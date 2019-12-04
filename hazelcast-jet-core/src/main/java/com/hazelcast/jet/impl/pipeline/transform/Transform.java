@@ -59,4 +59,14 @@ public interface Transform {
      * If it returns {@code 0}, this transform doesn't need watermarks.
      */
     long preferredWatermarkStride();
+
+    /**
+     * True if the output of this transform has a partition key.
+     */
+    boolean hasPartitioningKey();
+
+    /**
+     * True if the output of this transform has a timestamp.
+     */
+    boolean hasTimestamps();
 }

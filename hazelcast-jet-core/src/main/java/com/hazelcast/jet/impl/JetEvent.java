@@ -16,37 +16,72 @@
 
 package com.hazelcast.jet.impl;
 
+import com.hazelcast.jet.core.Partitioner;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 
-import static com.hazelcast.jet.impl.util.Util.toLocalTime;
-
 /**
- * Holds a stream event and its timestamp. Jet processors receive and send
- * these objects, but the user's lambdas in the Pipeline API don't observe
- * them.
+ * Holds a stream event, its timestamp and partition ID. Jet processors receive
+ * and send these objects, but the user's lambdas in the Pipeline API don't
+ * observe them.
  *
  * @param <T> type of the wrapped event
  */
 public final class JetEvent<T> {
-    private final long timestamp;
-    private final T payload;
+    public static final long NO_TIMESTAMP = Long.MIN_VALUE;
+    public static final int UNINITIALIZED_PARTITION_ID = -1;
 
-    private JetEvent(long timestamp, @Nonnull T payload) {
-        this.timestamp = timestamp;
+    public static final Partitioner<JetEvent<?>> JET_EVENT_PARTITIONER = (item, partitionCount) -> item.partitionId;
+
+    private final T payload;
+    private int partitionId;
+    private final long timestamp;
+    private transient Object key;
+
+    private JetEvent(@Nonnull T payload, @Nullable Object key, int partitionId, long timestamp) {
         this.payload = payload;
+        this.key = key;
+        this.partitionId = partitionId;
+        this.timestamp = timestamp;
     }
 
     /**
      * Creates a new {@code JetEvent} with the given components.
      */
     @Nullable
-    public static <T> JetEvent<T> jetEvent(long timestamp, @Nullable T payload) {
+    public static <T> JetEvent<T> jetEvent(@Nullable T payload, int partitionId, long timestamp) {
         if (payload == null) {
             return null;
         }
-        return new JetEvent<>(timestamp, payload);
+        return new JetEvent<>(payload, null, partitionId, timestamp);
+    }
+
+    /**
+     * Creates a new {@code JetEvent} with the given components.
+     */
+    @Nullable
+    public static <T> JetEvent<T> jetEvent(@Nullable T payload, @Nullable Object key, long timestamp) {
+        if (payload == null) {
+            return null;
+        }
+        return new JetEvent<>(payload, key, UNINITIALIZED_PARTITION_ID, timestamp);
+    }
+
+    /**
+     * Creates a new {@code JetEvent} for tests where the key is null and
+     * partitionId is 0. We don't need the key as it's a part of the payload
+     * normally.
+     *
+     * TODO [viliam] rename to testJetEvent
+     */
+    @Nullable
+    public static <T> JetEvent<T> jetEvent(@Nullable T payload, long timestamp) {
+        if (payload == null) {
+            return null;
+        }
+        return new JetEvent<>(payload, null, 0, timestamp);
     }
 
     /**
@@ -64,9 +99,26 @@ public final class JetEvent<T> {
         return payload;
     }
 
+    public Object key() {
+        return key;
+    }
+
+    public int partitionId() {
+        assert partitionId != UNINITIALIZED_PARTITION_ID : "uninitialized partition id";
+        return partitionId;
+    }
+
+    public void setPartitionId(int partitionId) {
+        if (partitionId != UNINITIALIZED_PARTITION_ID) {
+            this.partitionId = partitionId;
+            this.key = null;
+        }
+    }
+
     @Override
     public String toString() {
-        return "JetEvent{ts=" + toLocalTime(timestamp) + ", payload=" + payload + '}';
+        return "JetEvent{payload=" + payload + ", key=" + key + ", partitionId=" + partitionId + ", timestamp=" + timestamp
+                + '}';
     }
 
     @Override
@@ -78,11 +130,9 @@ public final class JetEvent<T> {
             return false;
         }
         JetEvent<?> jetEvent = (JetEvent<?>) o;
-        return timestamp == jetEvent.timestamp && Objects.equals(payload, jetEvent.payload);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(payload, timestamp);
+        return timestamp == jetEvent.timestamp &&
+                partitionId == jetEvent.partitionId &&
+                payload.equals(jetEvent.payload) &&
+                Objects.equals(key, jetEvent.key);
     }
 }

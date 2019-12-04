@@ -84,14 +84,16 @@ class CoreSerializerHooks {
                 @Override
                 public void write(ObjectDataOutput out, JetEvent object) throws IOException {
                     out.writeObject(object.payload());
+                    out.writeInt(object.partitionId());
                     out.writeLong(object.timestamp());
                 }
 
                 @Override
                 public JetEvent read(ObjectDataInput in) throws IOException {
                     Object payload = in.readObject();
+                    int partitionId = in.readInt();
                     long timestamp = in.readLong();
-                    return jetEvent(timestamp, payload);
+                    return jetEvent(payload, partitionId, timestamp);
                 }
 
                 @Override

@@ -256,7 +256,7 @@ class JetEventFunctionAdapter extends FunctionAdapter {
     <T, R> FunctionEx<? super JetEvent<T>, ?> adaptMapFn(
             @Nonnull FunctionEx<? super T, ? extends R> mapFn
     ) {
-        return e -> jetEvent(e.timestamp(), mapFn.apply(e.payload()));
+        return e -> jetEvent(mapFn.apply(e.payload()), e.partitionId(), e.timestamp());
     }
 
     @Nonnull @Override
@@ -268,21 +268,21 @@ class JetEventFunctionAdapter extends FunctionAdapter {
     <T, R> FunctionEx<? super JetEvent<T>, ? extends Traverser<JetEvent<R>>> adaptFlatMapFn(
             @Nonnull FunctionEx<? super T, ? extends Traverser<? extends R>> flatMapFn
     ) {
-        return e -> flatMapFn.apply(e.payload()).map(r -> jetEvent(e.timestamp(), r));
+        return e -> flatMapFn.apply(e.payload()).map(r -> jetEvent(r, e.partitionId(), e.timestamp()));
     }
 
     @Nonnull @Override
     <S, K, T, R> TriFunction<? super S, ? super K, ? super JetEvent<T>, ? extends JetEvent<R>> adaptStatefulMapFn(
             @Nonnull TriFunction<? super S, ? super K, ? super T, ? extends R> mapFn
     ) {
-        return (state, key, e) -> jetEvent(e.timestamp(), mapFn.apply(state, key, e.payload()));
+        return (state, key, e) -> jetEvent(mapFn.apply(state, key, e.payload()), e.partitionId(), e.timestamp());
     }
 
     @Nonnull
     <S, K, R> TriFunction<? super S, ? super K, ? super Long, ? extends JetEvent<R>> adaptOnEvictFn(
             @Nonnull TriFunction<? super S, ? super K, ? super Long, ? extends R> onEvictFn
     ) {
-        return (s, k, wm) -> jetEvent(wm, onEvictFn.apply(s, k, wm));
+        return (s, k, wm) -> jetEvent(onEvictFn.apply(s, k, wm), k, wm);
     }
 
     @Nonnull @Override
@@ -290,21 +290,21 @@ class JetEventFunctionAdapter extends FunctionAdapter {
     adaptStatefulFlatMapFn(
             @Nonnull TriFunction<? super S, ? super K, ? super T, ? extends Traverser<R>> flatMapFn
     ) {
-        return (state, key, e) -> flatMapFn.apply(state, key, e.payload()).map(r -> jetEvent(e.timestamp(), r));
+        return (state, key, e) -> flatMapFn.apply(state, key, e.payload()).map(r -> jetEvent(r, e.partitionId(), e.timestamp()));
     }
 
     @Nonnull
     <S, K, R> TriFunction<? super S, ? super K, ? super Long, ? extends Traverser<JetEvent<R>>> adaptOnEvictFlatMapFn(
             @Nonnull TriFunction<? super S, ? super K, ? super Long, ? extends Traverser<R>> onEvictFn
     ) {
-        return (s, k, wm) -> onEvictFn.apply(s, k, wm).map(r -> jetEvent(wm, r));
+        return (s, k, wm) -> onEvictFn.apply(s, k, wm).map(r -> jetEvent(r, k, wm));
     }
 
     @Nonnull @Override
     <S, T, R> BiFunctionEx<? super S, ? super JetEvent<T>, ? extends JetEvent<R>> adaptMapUsingServiceFn(
             @Nonnull BiFunctionEx<? super S, ? super T, ? extends R> mapFn
     ) {
-        return (s, e) -> jetEvent(e.timestamp(), mapFn.apply(s, e.payload()));
+        return (s, e) -> jetEvent(mapFn.apply(s, e.payload()), e.partitionId(), e.timestamp());
     }
 
     @Nonnull @Override
@@ -319,7 +319,7 @@ class JetEventFunctionAdapter extends FunctionAdapter {
     adaptFlatMapUsingServiceFn(
             @Nonnull BiFunctionEx<? super S, ? super T, ? extends Traverser<? extends R>> flatMapFn
     ) {
-        return (s, e) -> flatMapFn.apply(s, e.payload()).map(r -> jetEvent(e.timestamp(), r));
+        return (s, e) -> flatMapFn.apply(s, e.payload()).map(r -> jetEvent(r, e.partitionId(), e.timestamp()));
     }
 
     @Nonnull @Override
@@ -328,7 +328,8 @@ class JetEventFunctionAdapter extends FunctionAdapter {
             @Nonnull BiFunctionEx<? super S, ? super T, ? extends CompletableFuture<Traverser<R>>> flatMapAsyncFn
     ) {
         return (S s, JetEvent<T> e) ->
-                flatMapAsyncFn.apply(s, e.payload()).thenApply(trav -> trav.map(re -> jetEvent(e.timestamp(), re)));
+                flatMapAsyncFn.apply(s, e.payload())
+                              .thenApply(trav -> trav.map(re -> jetEvent(re, e.partitionId(), e.timestamp())));
     }
 
     @Nonnull @Override
@@ -351,14 +352,14 @@ class JetEventFunctionAdapter extends FunctionAdapter {
     public <T, T1, R> BiFunctionEx<? super JetEvent<T>, ? super T1, ?> adaptHashJoinOutputFn(
             @Nonnull BiFunctionEx<? super T, ? super T1, ? extends R> mapToOutputFn
     ) {
-        return (e, t1) -> jetEvent(e.timestamp(), mapToOutputFn.apply(e.payload(), t1));
+        return (e, t1) -> jetEvent(mapToOutputFn.apply(e.payload(), t1), e.partitionId(), e.timestamp());
     }
 
     @Nonnull @Override
     <T, T1, T2, R> TriFunction<? super JetEvent<T>, ? super T1, ? super T2, ?> adaptHashJoinOutputFn(
             @Nonnull TriFunction<? super T, ? super T1, ? super T2, ? extends R> mapToOutputFn
     ) {
-        return (e, t1, t2) -> jetEvent(e.timestamp(), mapToOutputFn.apply(e.payload(), t1, t2));
+        return (e, t1, t2) -> jetEvent(mapToOutputFn.apply(e.payload(), t1, t2), e.partitionId(), e.timestamp());
     }
 
     @Nonnull @Override

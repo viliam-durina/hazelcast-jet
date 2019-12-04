@@ -105,7 +105,7 @@ public class ConvenientSourceP<C, T, S> extends AbstractProcessor {
     protected void init(@Nonnull Context context) {
         ctx = createFn.apply(context);
         snapshotKey = broadcastKey(context.globalProcessorIndex());
-        // createFn is allowed to return null, we'll call `destroyFn` even for null `ctx`
+        // createFn is allowed to return null, that's why we need this flag:
         initialized = true;
     }
 

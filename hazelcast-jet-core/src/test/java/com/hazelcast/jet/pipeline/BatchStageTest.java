@@ -67,6 +67,7 @@ import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class BatchStageTest extends PipelineTestSupport {
 
@@ -998,4 +999,8 @@ public class BatchStageTest extends PipelineTestSupport {
          .writeTo(Sinks.noop());
     }
 
+    @Test
+    public void addTimestamps_when_alreadyHasTimestamps_then_erro() {
+        fail("todo");
+    }
 }

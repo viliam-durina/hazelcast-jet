@@ -46,8 +46,14 @@ class StageWithGroupingBase<T, K> {
     }
 
     @Nonnull
+    // TODO [viliam] will i need this function at all?
     public FunctionEx<? super T, ? extends K> keyFn() {
         return keyFn;
+    }
+
+    @Nonnull
+    public FunctionEx<?, ? extends K> adaptedKeyFn() {
+        return computeStage.fnAdapter.adaptKeyFn(keyFn);
     }
 
     @Nonnull

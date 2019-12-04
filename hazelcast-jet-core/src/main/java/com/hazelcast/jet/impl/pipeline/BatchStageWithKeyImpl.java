@@ -28,6 +28,7 @@ import com.hazelcast.jet.aggregate.AggregateOperation3;
 import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.function.TriFunction;
 import com.hazelcast.jet.function.TriPredicate;
+import com.hazelcast.jet.impl.JetEvent;
 import com.hazelcast.jet.impl.pipeline.transform.DistinctTransform;
 import com.hazelcast.jet.impl.pipeline.transform.GroupTransform;
 import com.hazelcast.jet.pipeline.BatchStage;
@@ -38,7 +39,7 @@ import javax.annotation.Nonnull;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 
-import static com.hazelcast.jet.impl.pipeline.ComputeStageImplBase.DO_NOT_ADAPT;
+import static com.hazelcast.jet.impl.JetEvent.jetEvent;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 
@@ -50,6 +51,8 @@ public class BatchStageWithKeyImpl<T, K> extends StageWithGroupingBase<T, K> imp
     ) {
         super(computeStage, keyFn);
     }
+
+    // TODO [viliam] adapt most of the functions here
 
     @Nonnull @Override
     public <S, R> BatchStage<R> mapStateful(
@@ -77,7 +80,8 @@ public class BatchStageWithKeyImpl<T, K> extends StageWithGroupingBase<T, K> imp
 
     @Nonnull @Override
     public BatchStage<T> distinct() {
-        return computeStage.attach(new DistinctTransform<>(computeStage.transform, keyFn()), DO_NOT_ADAPT);
+        FunctionEx<?, ? extends K> adaptedKeyFn = computeStage.fnAdapter.adaptKeyFn(keyFn());
+        return computeStage.attach(new DistinctTransform<>(computeStage.transform, adaptedKeyFn), computeStage.fnAdapter);
     }
 
     @Nonnull @Override
@@ -142,11 +146,10 @@ public class BatchStageWithKeyImpl<T, K> extends StageWithGroupingBase<T, K> imp
             @Nonnull AggregateOperation1<? super T, ?, ? extends R> aggrOp
     ) {
         return computeStage.attach(new GroupTransform<>(
-                        singletonList(computeStage.transform),
-                        singletonList(keyFn()),
-                        aggrOp,
-                        Util::entry),
-                DO_NOT_ADAPT);
+                singletonList(computeStage.transform),
+                singletonList(adaptedKeyFn()),
+                computeStage.fnAdapter.adaptAggregateOperation(aggrOp),
+                (K k, R v) -> jetEvent(Util.entry(k, v), k, JetEvent.NO_TIMESTAMP)));
     }
 
     @Nonnull @Override
@@ -154,13 +157,14 @@ public class BatchStageWithKeyImpl<T, K> extends StageWithGroupingBase<T, K> imp
             @Nonnull BatchStageWithKey<T1, ? extends K> stage1,
             @Nonnull AggregateOperation2<? super T, ? super T1, ?, R> aggrOp
     ) {
+        @SuppressWarnings("unchecked")
+        StageWithGroupingBase<T1, K> stage1Casted = (StageWithGroupingBase<T1, K>) stage1;
         return computeStage.attach(
                 new GroupTransform<>(
                         asList(computeStage.transform, transformOf(stage1)),
-                        asList(keyFn(), stage1.keyFn()),
-                        aggrOp,
-                        Util::entry
-                ), DO_NOT_ADAPT);
+                        asList(adaptedKeyFn(), stage1Casted.adaptedKeyFn()),
+                        computeStage.fnAdapter.adaptAggregateOperation(aggrOp),
+                        (K k, R v) -> jetEvent(Util.entry(k, v), k, JetEvent.NO_TIMESTAMP)));
     }
 
     @Nonnull @Override
@@ -169,12 +173,18 @@ public class BatchStageWithKeyImpl<T, K> extends StageWithGroupingBase<T, K> imp
             @Nonnull BatchStageWithKey<T2, ? extends K> stage2,
             @Nonnull AggregateOperation3<? super T, ? super T1, ? super T2, ?, ? extends R> aggrOp
     ) {
+        @SuppressWarnings("unchecked")
+        StageWithGroupingBase<T1, K> stage1Casted = (StageWithGroupingBase<T1, K>) stage1;
+        @SuppressWarnings("unchecked")
+        StageWithGroupingBase<T2, K> stage2Casted = (StageWithGroupingBase<T2, K>) stage2;
         return computeStage.attach(
                 new GroupTransform<>(
                         asList(computeStage.transform, transformOf(stage1), transformOf(stage2)),
-                        asList(keyFn(), stage1.keyFn(), stage2.keyFn()),
-                        aggrOp,
-                        Util::entry),
-                DO_NOT_ADAPT);
+                        asList(
+                                adaptedKeyFn(),
+                                stage1Casted.adaptedKeyFn(),
+                                stage2Casted.adaptedKeyFn()),
+                        computeStage.fnAdapter.adaptAggregateOperation(aggrOp),
+                        (K k, R v) -> jetEvent(Util.entry(k, v), k, JetEvent.NO_TIMESTAMP)));
     }
 }
