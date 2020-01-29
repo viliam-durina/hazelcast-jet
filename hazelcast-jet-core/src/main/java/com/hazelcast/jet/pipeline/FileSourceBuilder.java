@@ -17,16 +17,17 @@
 package com.hazelcast.jet.pipeline;
 
 import com.hazelcast.function.BiFunctionEx;
-import com.hazelcast.function.FunctionEx;
+import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.core.processor.SourceProcessors;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.stream.Stream;
 
+import static com.hazelcast.jet.Traversers.traverseStream;
 import static com.hazelcast.jet.pipeline.Sources.batchFromProcessor;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -85,7 +86,7 @@ public final class FileSourceBuilder {
      * java.nio.charset.StandardCharsets#UTF_8}.
      * <p>
      * Setting this component has no effect if the user provides a custom
-     * {@code readFileFn} to the {@link #build(FunctionEx) build()} method.
+     * {@code readFileFn} to the {@link #build(BiFunctionEx) build()} method.
      */
     @Nonnull
     public FileSourceBuilder charset(@Nonnull Charset charset) {
@@ -124,11 +125,10 @@ public final class FileSourceBuilder {
         String charsetName = charset.name();
         return batchFromProcessor("filesSource(" + new File(directory, glob) + ')',
                 SourceProcessors.readFilesP(directory, glob, sharedFileSystem,
-                        path -> {
-                            String fileName = path.getFileName().toString();
-                            return Files.lines(path, Charset.forName(charsetName))
-                                        .map(l -> mapOutputFn.apply(fileName, l));
-                        }));
+                        (fileName, stream) ->
+                                traverseStream(new BufferedReader(new InputStreamReader(stream, charsetName)).lines())
+                                        .map(l -> mapOutputFn.apply(fileName, l))
+                ));
     }
 
     /**
@@ -150,7 +150,9 @@ public final class FileSourceBuilder {
      * @param <T> the type of items returned from file reading
      */
     @Nonnull
-    public <T> BatchSource<T> build(@Nonnull FunctionEx<? super Path, ? extends Stream<T>> readFileFn) {
+    public <T> BatchSource<T> buildCustom(
+            @Nonnull BiFunctionEx<? super String, ? super InputStream, ? extends Traverser<T>> readFileFn
+    ) {
         return batchFromProcessor("filesSource(" + new File(directory, glob) + ')',
                 SourceProcessors.readFilesP(directory, glob, sharedFileSystem, readFileFn));
     }

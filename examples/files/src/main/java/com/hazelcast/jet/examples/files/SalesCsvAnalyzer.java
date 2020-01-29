@@ -24,12 +24,15 @@ import com.hazelcast.jet.pipeline.Pipeline;
 import com.hazelcast.jet.pipeline.Sinks;
 import com.hazelcast.jet.pipeline.Sources;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.Serializable;
-import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Demonstrates the usage of the file {@link Sources#filesBuilder sources}
@@ -45,10 +48,12 @@ public class SalesCsvAnalyzer {
         Pipeline p = Pipeline.create();
 
         BatchSource<SalesRecordLine> source = Sources.filesBuilder(sourceDir)
-                                                     .glob("*.csv")
-                                                     .build(path -> Files.lines(path)
-                                                                         .skip(1)
-                                                                         .map(SalesRecordLine::parse));
+                .glob("*.csv")
+                .buildCustom((fileName, stream) -> {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(stream, UTF_8));
+                    reader.readLine(); // skip the header
+                    return () -> SalesRecordLine.parse(reader.readLine());
+                });
         p.readFrom(source)
          .filter(record -> record.getPrice() < 30)
          .groupingKey(SalesRecordLine::getPaymentType)
@@ -93,6 +98,9 @@ public class SalesCsvAnalyzer {
         private String country;
 
         public static SalesRecordLine parse(String line) {
+            if (line == null) {
+                return null;
+            }
             String[] split = line.split(",");
             SalesRecordLine record = new SalesRecordLine();
             record.time = LocalDateTime.parse(split[0], DATE_TIME_FORMATTER).toInstant(ZoneOffset.UTC).toEpochMilli();

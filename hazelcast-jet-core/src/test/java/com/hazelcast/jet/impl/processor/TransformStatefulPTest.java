@@ -362,7 +362,7 @@ public class TransformStatefulPTest {
             } else {
                 @SuppressWarnings("unchecked")
                 Traverser<OUT> t = expandFn.apply((OUT) item);
-                for (OUT r; (r = t.next()) != null; ) {
+                for (OUT r; (r = t.nextEx()) != null; ) {
                     result.add(r);
                 }
             }

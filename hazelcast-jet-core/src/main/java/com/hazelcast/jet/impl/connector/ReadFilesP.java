@@ -17,22 +17,22 @@
 package com.hazelcast.jet.impl.connector;
 
 import com.hazelcast.function.BiFunctionEx;
-import com.hazelcast.function.FunctionEx;
 import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.core.processor.SourceProcessors;
+import com.hazelcast.jet.function.RunnableEx;
 
 import javax.annotation.Nonnull;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.stream.Stream;
 
-import static com.hazelcast.jet.Traversers.traverseStream;
+import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 import static com.hazelcast.jet.impl.util.Util.checkSerializable;
 
 /**
@@ -47,30 +47,27 @@ import static com.hazelcast.jet.impl.util.Util.checkSerializable;
  * one file is only read by one thread, so extra parallelism won't improve
  * performance if there aren't enough files to read.
  */
-public final class ReadFilesP<R, T> extends AbstractProcessor {
+public final class ReadFilesP<T> extends AbstractProcessor {
 
     private final Path directory;
     private final String glob;
     private final boolean sharedFileSystem;
-    private final FunctionEx<? super Path, ? extends Stream<R>> readFileFn;
-    private final BiFunctionEx<? super String, ? super R, ? extends T> mapOutputFn;
+    private final BiFunctionEx<? super String, ? super FileInputStream, ? extends Traverser<T>> readFileFn;
 
     private int processorIndex;
     private int parallelism;
     private DirectoryStream<Path> directoryStream;
     private Traverser<? extends T> outputTraverser;
-    private Stream<R> currentStream;
+    private FileInputStream currentStream;
 
     private ReadFilesP(
             @Nonnull String directory,
             @Nonnull String glob, boolean sharedFileSystem,
-            @Nonnull FunctionEx<? super Path, ? extends Stream<R>> readFileFn,
-            @Nonnull BiFunctionEx<? super String, ? super R, ? extends T> mapOutputFn
+            @Nonnull BiFunctionEx<? super String, ? super FileInputStream, ? extends Traverser<T>> readFileFn
     ) {
         this.directory = Paths.get(directory);
         this.glob = glob;
         this.readFileFn = readFileFn;
-        this.mapOutputFn = mapOutputFn;
         this.sharedFileSystem = sharedFileSystem;
     }
 
@@ -108,11 +105,14 @@ public final class ReadFilesP<R, T> extends AbstractProcessor {
             getLogger().finest("Processing file " + file);
         }
         assert currentStream == null : "currentStream != null";
-        currentStream = readFileFn.apply(file);
+        try {
+            currentStream = new FileInputStream(file.toFile());
+        } catch (IOException e) {
+            throw sneakyThrow(e);
+        }
         String fileName = file.getFileName().toString();
-        return traverseStream(currentStream)
-                .map(line -> mapOutputFn.apply(fileName, line))
-                .onFirstNull(() -> {
+        return readFileFn.apply(fileName, currentStream)
+                .onFirstNull((RunnableEx) () -> {
                     currentStream.close();
                     currentStream = null;
                 });
@@ -139,18 +139,15 @@ public final class ReadFilesP<R, T> extends AbstractProcessor {
     /**
      * Private API. Use {@link SourceProcessors#readFilesP} instead.
      */
-    public static <W, T> ProcessorMetaSupplier metaSupplier(
+    public static <T> ProcessorMetaSupplier metaSupplier(
             @Nonnull String directory,
             @Nonnull String glob,
             boolean sharedFileSystem,
-            @Nonnull FunctionEx<? super Path, ? extends Stream<W>> readFileFn,
-            @Nonnull BiFunctionEx<? super String, ? super W, ? extends T> mapOutputFn
+            @Nonnull BiFunctionEx<? super String, ? super FileInputStream, ? extends Traverser<T>> readFileFn
     ) {
         checkSerializable(readFileFn, "readFileFn");
-        checkSerializable(mapOutputFn, "mapOutputFn");
 
-        return ProcessorMetaSupplier.of(2, () -> new ReadFilesP<>(
-                directory, glob, sharedFileSystem, readFileFn, mapOutputFn)
-        );
+        return ProcessorMetaSupplier.of(2,
+                () -> new ReadFilesP<>(directory, glob, sharedFileSystem, readFileFn));
     }
 }

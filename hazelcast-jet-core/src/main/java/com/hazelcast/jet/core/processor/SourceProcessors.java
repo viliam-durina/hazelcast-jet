@@ -24,6 +24,7 @@ import com.hazelcast.function.ConsumerEx;
 import com.hazelcast.function.FunctionEx;
 import com.hazelcast.function.PredicateEx;
 import com.hazelcast.function.SupplierEx;
+import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.core.EventTimePolicy;
 import com.hazelcast.jet.core.Processor.Context;
@@ -56,16 +57,17 @@ import javax.jms.Connection;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.Session;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
 import static com.hazelcast.internal.util.Preconditions.checkNotNegative;
+import static com.hazelcast.jet.Traversers.traverseStream;
 import static com.hazelcast.jet.Util.cacheEventToEntry;
 import static com.hazelcast.jet.Util.cachePutEvents;
 import static com.hazelcast.jet.Util.mapEventToEntry;
@@ -317,11 +319,9 @@ public final class SourceProcessors {
                     directory,
                     glob,
                     sharedFileSystem,
-                    path -> {
-                        String fileName = path.getFileName().toString();
-                        return Files.lines(path, Charset.forName(charsetName))
-                                    .map(l -> mapOutputFn.apply(fileName, l));
-                    }
+                    (fileName, stream) ->
+                            traverseStream(new BufferedReader(new InputStreamReader(stream, charsetName)).lines())
+                                    .map(l -> mapOutputFn.apply(fileName, l))
                 );
     }
 
@@ -330,13 +330,13 @@ public final class SourceProcessors {
      * See {@link FileSourceBuilder#build} for more details.
      */
     @Nonnull
-    public static <I> ProcessorMetaSupplier readFilesP(
+    public static <T> ProcessorMetaSupplier readFilesP(
             @Nonnull String directory,
             @Nonnull String glob,
             boolean sharedFileSystem,
-            @Nonnull FunctionEx<? super Path, ? extends Stream<I>> readFileFn
+            @Nonnull BiFunctionEx<? super String, ? super InputStream, ? extends Traverser<T>> readFileFn
     ) {
-        return ReadFilesP.metaSupplier(directory, glob, sharedFileSystem, readFileFn, (f, l) -> l);
+        return ReadFilesP.metaSupplier(directory, glob, sharedFileSystem, readFileFn);
     }
 
     /**

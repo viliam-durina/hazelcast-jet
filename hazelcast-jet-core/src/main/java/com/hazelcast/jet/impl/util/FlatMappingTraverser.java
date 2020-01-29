@@ -46,7 +46,7 @@ public class FlatMappingTraverser<T, R> implements Traverser<R> {
     }
 
     @Override
-    public R next() {
+    public R next() throws Exception {
         do {
             R r = currentTraverser.next();
             if (r != null) {
@@ -58,7 +58,7 @@ public class FlatMappingTraverser<T, R> implements Traverser<R> {
     }
 
     @SuppressWarnings("unchecked")
-    private Traverser<? extends R> nextTraverser() {
+    private Traverser<? extends R> nextTraverser() throws Exception {
         final T t = wrapped.next();
         return t != null ? mapper.apply(t) : NULL_TRAVERSER;
     }

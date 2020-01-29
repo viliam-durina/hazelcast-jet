@@ -366,9 +366,9 @@ public abstract class AbstractProcessor implements Processor {
             item = (E) pendingItem;
             pendingItem = null;
         } else {
-            item = traverser.next();
+            item = traverser.nextEx();
         }
-        for (; item != null; item = traverser.next()) {
+        for (; item != null; item = traverser.nextEx()) {
             if (!tryEmit(ordinals, item)) {
                 pendingItem = item;
                 return false;
@@ -402,9 +402,9 @@ public abstract class AbstractProcessor implements Processor {
             item = (E) pendingItem;
             pendingItem = null;
         } else {
-            item = traverser.next();
+            item = traverser.nextEx();
         }
-        for (; item != null; item = traverser.next()) {
+        for (; item != null; item = traverser.nextEx()) {
             if (!tryEmit(ordinal, item)) {
                 pendingItem = item;
                 return false;
@@ -470,9 +470,9 @@ public abstract class AbstractProcessor implements Processor {
             item = pendingSnapshotItem;
             pendingSnapshotItem = null;
         } else {
-            item = traverser.next();
+            item = traverser.nextEx();
         }
-        for (; item != null; item = traverser.next()) {
+        for (; item != null; item = traverser.nextEx()) {
             if (!tryEmitToSnapshot(item.getKey(), item.getValue())) {
                 pendingSnapshotItem = item;
                 return false;

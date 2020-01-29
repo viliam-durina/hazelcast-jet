@@ -187,10 +187,10 @@ public final class Traversers {
         public T next() {
             final Traverser<T> trav = this.traverser;
             if (trav != null) {
-                return trav.next();
+                return trav.nextEx();
             }
             try {
-                return (traverser = supplierOfTraverser.get()).next();
+                return (traverser = supplierOfTraverser.get()).nextEx();
             } finally {
                 supplierOfTraverser = null;
             }

@@ -30,7 +30,7 @@ import static org.junit.Assert.assertNull;
 public class FlatMappingTraverserTest {
 
     @Test
-    public void smokeTest() {
+    public void smokeTest() throws Exception {
         FlatMappingTraverser<Integer, Integer> trav = new FlatMappingTraverser<>(
                 traverseItems(0, 1, 2, 3),
                 numItems -> traverseStream(IntStream.range(0, numItems).boxed()));
@@ -46,7 +46,7 @@ public class FlatMappingTraverserTest {
     }
 
     @Test
-    public void when_flatMapToNullTraverser_then_skipOverToNext() {
+    public void when_flatMapToNullTraverser_then_skipOverToNext() throws Exception {
         // This test would fail, if the internal FlatMappingTraverser.NULL_TRAVERSER instance
         // would be the same (as per == operator) as the instance returned by Traversers.empty()
         FlatMappingTraverser<Integer, String> trav =

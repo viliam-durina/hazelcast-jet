@@ -25,17 +25,18 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.file.SeekableInput;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 
 import javax.annotation.Nonnull;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.stream.StreamSupport;
 
+import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.core.ProcessorMetaSupplier.preferLocalParallelismOne;
-import static com.hazelcast.jet.impl.util.Util.uncheckRun;
 
 /**
  * Static utility class with factories of Apache Avro source and sink
@@ -60,12 +61,12 @@ public final class AvroProcessors {
             @Nonnull BiFunctionEx<String, ? super D, T> mapOutputFn
     ) {
         return ReadFilesP.metaSupplier(directory, glob, sharedFileSystem,
-                path -> {
-                    DataFileReader<D> reader = new DataFileReader<>(path.toFile(), datumReaderSupplier.get());
-                    return StreamSupport.stream(reader.spliterator(), false)
-                                        .onClose(() -> uncheckRun(reader::close));
-                },
-                mapOutputFn);
+                (fileName, stream) -> {
+                    SeekableInputFromStream input = new SeekableInputFromStream(stream);
+                    DataFileReader<D> reader = new DataFileReader<>(input, datumReaderSupplier.get());
+                    return traverseIterable(reader)
+                            .map(item -> mapOutputFn.apply(fileName, item));
+                });
     }
 
     /**
@@ -102,5 +103,38 @@ public final class AvroProcessors {
         DataFileWriter<D> writer = new DataFileWriter<>(datumWriterSupplier.get());
         writer.create(schemaSupplier.get(), file.toFile());
         return writer;
+    }
+
+    private static class SeekableInputFromStream implements SeekableInput {
+        private final FileInputStream delegate;
+
+        public SeekableInputFromStream(FileInputStream delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void seek(long p) throws IOException {
+            delegate.getChannel().position(p);
+        }
+
+        @Override
+        public long tell() throws IOException {
+            return delegate.getChannel().position();
+        }
+
+        @Override
+        public long length() throws IOException {
+            return delegate.getChannel().size();
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return delegate.read(b, off, len);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 }

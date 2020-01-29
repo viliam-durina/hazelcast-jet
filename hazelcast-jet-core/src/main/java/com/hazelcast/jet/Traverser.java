@@ -25,6 +25,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
+
 /**
  * Traverses a potentially infinite sequence of non-{@code null} items. Each
  * invocation of {@link #next()} consumes and returns the next item in the
@@ -51,7 +53,15 @@ public interface Traverser<T> {
      * getting a {@code null} means it's exhausted and will keep returning
      * {@code null} forever. Otherwise, trying again later may produce one.
      */
-    T next();
+    T next() throws Exception;
+
+    default T nextEx() {
+        try {
+            return next();
+        } catch (Exception e) {
+            throw sneakyThrow(e);
+        }
+    }
 
     /**
      * Returns a traverser that will emit the results of applying {@code
@@ -120,7 +130,7 @@ public interface Traverser<T> {
                 if (!predicateSatisfied) {
                     return null;
                 }
-                T t = Traverser.this.next();
+                T t = Traverser.this.nextEx();
                 predicateSatisfied = t == null || predicate.test(t);
                 return predicateSatisfied ? t : null;
             }
@@ -140,9 +150,9 @@ public interface Traverser<T> {
             @Override
             public T next() {
                 if (!predicateSatisfied) {
-                    return Traverser.this.next();
+                    return Traverser.this.nextEx();
                 }
-                for (T t; (t = Traverser.this.next()) != null; ) {
+                for (T t; (t = Traverser.this.nextEx()) != null; ) {
                     predicateSatisfied = predicate.test(t);
                     if (!predicateSatisfied) {
                         return t;
@@ -170,7 +180,7 @@ public interface Traverser<T> {
             T appendedItem = item;
             @Override
             public T next() {
-                T t = Traverser.this.next();
+                T t = Traverser.this.nextEx();
                 if (t == null) {
                     try {
                         return appendedItem;
@@ -195,7 +205,7 @@ public interface Traverser<T> {
             @Override
             public T next() {
                 if (itemReturned) {
-                    return Traverser.this.next();
+                    return Traverser.this.nextEx();
                 }
                 itemReturned = true;
                 return item;
@@ -232,7 +242,7 @@ public interface Traverser<T> {
 
             @Override
             public T next() {
-                T t = Traverser.this.next();
+                T t = Traverser.this.nextEx();
                 if (t == null && !didRun) {
                     action.run();
                     didRun = true;

@@ -46,7 +46,7 @@ public class AppendableTraverserTest {
     }
 
     @Test
-    public void test_flatMapperUsage() {
+    public void test_flatMapperUsage() throws Exception {
         // an instance of AppendableTraverser is repeatedly returned
         // from a flatMap function
         Traverser tt = Traversers.traverseItems(10, 20)

@@ -45,42 +45,42 @@ import static org.junit.Assert.assertNull;
 public class TraversersTest {
 
     @Test
-    public void when_traverserOverArgs_then_seeAllItems() {
+    public void when_traverserOverArgs_then_seeAllItems() throws Exception {
         validateTraversal(traverseItems(1, 2));
     }
 
     @Test
-    public void when_traverseIterator_then_seeAllItems() {
+    public void when_traverseIterator_then_seeAllItems() throws Exception {
         validateTraversal(traverseIterator(Stream.of(1, 2).iterator()));
     }
 
     @Test
-    public void when_traverseSpliterator_then_seeAllItems() {
+    public void when_traverseSpliterator_then_seeAllItems() throws Exception {
         validateTraversal(traverseSpliterator(Stream.of(1, 2).spliterator()));
     }
 
     @Test
-    public void when_traverseEnumeration_then_seeAllItems() {
+    public void when_traverseEnumeration_then_seeAllItems() throws Exception {
         validateTraversal(traverseEnumeration(new Vector<>(asList(1, 2)).elements()));
     }
 
     @Test
-    public void when_traverseStream_then_seeAllItems() {
+    public void when_traverseStream_then_seeAllItems() throws Exception {
         validateTraversal(traverseStream(of(1, 2)));
     }
 
     @Test
-    public void when_traverseIterable_then_seeAllItems() {
+    public void when_traverseIterable_then_seeAllItems() throws Exception {
         validateTraversal(traverseIterable(asList(1, 2)));
     }
 
     @Test
-    public void when_traverseArray_then_seeAllItems() {
+    public void when_traverseArray_then_seeAllItems() throws Exception {
         validateTraversal(traverseArray(new Integer[] {1, 2}));
     }
 
     @Test
-    public void when_traverserOverArgsWithNull_then_skipNulls() {
+    public void when_traverserOverArgsWithNull_then_skipNulls() throws Exception {
         Traverser<Integer> trav = traverseItems(1, null, 2);
         assertEquals(1, (int) trav.next());
         assertEquals(2, (int) trav.next());
@@ -88,7 +88,7 @@ public class TraversersTest {
     }
 
     @Test
-    public void when_traverseArrayWithNull_then_skipNulls() {
+    public void when_traverseArrayWithNull_then_skipNulls() throws Exception {
         Traverser<Integer> trav = traverseArray(new Integer[] {1, null, 2});
         assertEquals(1, (int) trav.next());
         assertEquals(2, (int) trav.next());
@@ -96,14 +96,14 @@ public class TraversersTest {
     }
 
     @Test(expected = NullPointerException.class)
-    public void when_traverseIteratorWithNull_then_failure() {
+    public void when_traverseIteratorWithNull_then_failure() throws Exception {
         Traverser<Integer> trav = traverseIterator(asList(1, null).iterator());
         trav.next();
         trav.next();
     }
 
     @Test
-    public void when_traverseIteratorIgnoringNulls_then_filteredOut() {
+    public void when_traverseIteratorIgnoringNulls_then_filteredOut() throws Exception {
         Traverser<Integer> trav = traverseIterator(asList(null, 1, null, 2, null).iterator(), true);
         assertEquals(1, (int) trav.next());
         assertEquals(2, (int) trav.next());
@@ -111,28 +111,28 @@ public class TraversersTest {
     }
 
     @Test(expected = NullPointerException.class)
-    public void when_traverseSpliteratorWithNull_then_failure() {
+    public void when_traverseSpliteratorWithNull_then_failure() throws Exception {
         Traverser<Integer> trav = traverseSpliterator(Stream.of(1, null).spliterator());
         trav.next();
         trav.next();
     }
 
     @Test(expected = NullPointerException.class)
-    public void when_traverseEnumerationWithNull_then_failure() {
+    public void when_traverseEnumerationWithNull_then_failure() throws Exception {
         Traverser<Integer> trav = traverseEnumeration(new Vector<>(asList(1, null)).elements());
         trav.next();
         trav.next();
     }
 
     @Test(expected = NullPointerException.class)
-    public void when_traverseIterableWithNull_then_failure() {
+    public void when_traverseIterableWithNull_then_failure() throws Exception {
         Traverser<Integer> trav = traverseIterable(asList(1, null));
         trav.next();
         trav.next();
     }
 
     @Test
-    public void when_traverseStreamConsumed_then_streamClosed() {
+    public void when_traverseStreamConsumed_then_streamClosed() throws Exception {
         // Given
         boolean[] closed = {false};
         Traverser<Integer> trav = traverseStream(of(1).onClose(() -> closed[0] = true));
@@ -155,11 +155,11 @@ public class TraversersTest {
     }
 
     @Test
-    public void lazyTraversalTransparent() {
+    public void lazyTraversalTransparent() throws Exception {
         validateTraversal(Traversers.lazy(() -> traverseStream(of(1, 2))));
     }
 
-    private static void validateTraversal(Traverser<?> trav) {
+    private static void validateTraversal(Traverser<?> trav) throws Exception {
         // When
         final Object t1 = trav.next();
         final Object t2 = trav.next();
@@ -172,7 +172,7 @@ public class TraversersTest {
     }
 
     @Test
-    public void peek() {
+    public void peek() throws Exception {
         List<Integer> list = new ArrayList<>();
         Traverser<Integer> t = traverseItems(1, 2, 3).peek(list::add);
 

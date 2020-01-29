@@ -48,7 +48,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void smokeTest_map() {
+    public void smokeTest_map() throws Exception {
         check(resetRootTraverser().map(identity()),
                 asList(0, 1, 2), singletonList(3));
         check(resetRootTraverser().map(i -> i + 1),
@@ -64,7 +64,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void smokeTest_filter() {
+    public void smokeTest_filter() throws Exception {
         check(resetRootTraverser().filter(i -> true),
                 asList(0, 1, 2), singletonList(3));
         check(resetRootTraverser().filter(i -> false),
@@ -82,7 +82,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void smokeTest_takeWhile() {
+    public void smokeTest_takeWhile() throws Exception {
         check(resetRootTraverser().takeWhile(i -> false),
                 emptyList(), emptyList());
         check(resetRootTraverser().takeWhile(i -> true),
@@ -98,7 +98,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void smokeTest_dropWhile() {
+    public void smokeTest_dropWhile() throws Exception {
         check(resetRootTraverser().dropWhile(i -> true),
                 emptyList(), emptyList());
         check(resetRootTraverser().dropWhile(i -> false),
@@ -114,7 +114,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void smokeTest_append() {
+    public void smokeTest_append() throws Exception {
         check(traverseItems(0, 1, 2).append(5),
                 asList(0, 1, 2, 5), emptyList());
         check(traverseItems(0, 1, 2).append(5).append(6),
@@ -124,7 +124,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void smokeTest_prepend() {
+    public void smokeTest_prepend() throws Exception {
         check(resetRootTraverser().prepend(5),
                 asList(5, 0, 1, 2), singletonList(3));
         check(resetRootTraverser().prepend(5).prepend(6),
@@ -134,7 +134,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void smokeTest_flatMap() {
+    public void smokeTest_flatMap() throws Exception {
         check(resetRootTraverser().flatMap(i -> traverseItems(0, 1, 2)),
                 asList(0, 1, 2, 0, 1, 2, 0, 1, 2), asList(0, 1, 2));
         check(resetRootTraverser().flatMap(i -> Traversers.empty()),
@@ -144,7 +144,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void flatMap_continueAfterNull() {
+    public void flatMap_continueAfterNull() throws Exception {
         AppendableTraverser<Integer> rootTrav = new AppendableTraverser<>(1);
         rootTrav.append(0);
         Traverser<Integer> mappedTrav = rootTrav.flatMap(Traversers::traverseItems);
@@ -173,13 +173,13 @@ public class TraverserTest {
         try {
             flatMapped.next();
             fail("should have failed");
-        } catch (AssertionError e) {
+        } catch (AssertionError | Exception e) {
             assertEquals("item must not be taken", e.getMessage());
         }
     }
 
     @Test
-    public void smokeTest_peek() {
+    public void smokeTest_peek() throws Exception {
         List<Integer> peekList = new ArrayList<>();
         check(resetRootTraverser().peek(peekList::add),
                 asList(0, 1, 2), singletonList(3));
@@ -206,7 +206,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void smokeTest_onFirstNull() {
+    public void smokeTest_onFirstNull() throws Exception {
         boolean[] actionCalled = {false};
         Traverser<Integer> t = resetRootTraverser()
                 .onFirstNull(() -> {
@@ -229,7 +229,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void when_allFilteredOut_then_onFirstNullCalledImmediately() {
+    public void when_allFilteredOut_then_onFirstNullCalledImmediately() throws Exception {
         boolean[] actionCalled = {false};
         Traverser<Integer> t = resetRootTraverser()
                 .filter(i -> false)
@@ -244,7 +244,7 @@ public class TraverserTest {
     }
 
     @Test
-    public void when_allFilteredOutUsingMap_then_onFirstNullCalledImmediately() {
+    public void when_allFilteredOutUsingMap_then_onFirstNullCalledImmediately() throws Exception {
         boolean[] actionCalled = {false};
         Traverser<Integer> t = resetRootTraverser()
                 .map(i -> (Integer) null)
@@ -258,7 +258,7 @@ public class TraverserTest {
         assertTrue(actionCalled[0]);
     }
 
-    private <T> void check(Traverser<T> t, List<T> expected, List<T> expectedAfterAdd) {
+    private <T> void check(Traverser<T> t, List<T> expected, List<T> expectedAfterAdd) throws Exception {
         List<T> list = new ArrayList<>();
         for (T item; (item = t.next()) != null; ) {
             list.add(item);

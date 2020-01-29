@@ -219,7 +219,7 @@ public final class S3Sources {
                     ).iterator();
         }
 
-        private void fillBuffer(SourceBuffer<? super T> buffer) {
+        private void fillBuffer(SourceBuffer<? super T> buffer) throws Exception {
             if (itemTraverser != null) {
                 addBatchToBuffer(buffer);
                 return;
@@ -246,7 +246,7 @@ public final class S3Sources {
             }
         }
 
-        private void addBatchToBuffer(SourceBuffer<? super T> buffer) {
+        private void addBatchToBuffer(SourceBuffer<? super T> buffer) throws Exception {
             assert currentKey != null : "currentKey must not be null";
             for (int i = 0; i < BATCH_COUNT; i++) {
                 I item = itemTraverser.next();

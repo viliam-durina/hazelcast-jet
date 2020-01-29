@@ -38,7 +38,7 @@ public class EventTimeMapperTest {
     public ExpectedException exception = ExpectedException.none();
 
     @Test
-    public void smokeTest() {
+    public void smokeTest() throws Exception {
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(
                 eventTimePolicy(Long::longValue, limitingLag(LAG), 1, 0, 5)
         );
@@ -58,7 +58,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void smokeTest_disabledIdleTimeout() {
+    public void smokeTest_disabledIdleTimeout() throws Exception {
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(
                 eventTimePolicy(Long::longValue, limitingLag(LAG), 1, 0, 0)
         );
@@ -79,7 +79,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void test_zeroPartitions() {
+    public void test_zeroPartitions() throws Exception {
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(
                 eventTimePolicy(Long::longValue, limitingLag(LAG), 1, 0, 0)
         );
@@ -95,7 +95,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void when_idle_event_idle_then_twoIdleMessagesSent() {
+    public void when_idle_event_idle_then_twoIdleMessagesSent() throws Exception {
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(
                 eventTimePolicy(Long::longValue, limitingLag(LAG), 1, 0, 10)
         );
@@ -112,7 +112,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void when_eventInOneOfTwoPartitions_then_wmAndIdleMessageForwardedAfterTimeout() {
+    public void when_eventInOneOfTwoPartitions_then_wmAndIdleMessageForwardedAfterTimeout() throws Exception {
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(
                 eventTimePolicy(Long::longValue, limitingLag(LAG), 1, 0, 10)
         );
@@ -139,7 +139,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void when_noTimestampFn_then_useNativeTime() {
+    public void when_noTimestampFn_then_useNativeTime() throws Exception {
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(
                 eventTimePolicy(null, limitingLag(LAG), 1, 0, 5)
         );
@@ -150,7 +150,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void when_throttlingToMaxFrame_then_noWatermarksOutput() {
+    public void when_throttlingToMaxFrame_then_noWatermarksOutput() throws Exception {
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(
                 eventTimePolicy(Long::longValue, limitingLag(LAG), 0, 0, 5)
         );
@@ -161,7 +161,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void when_restoredState_then_wmDoesNotGoBack() {
+    public void when_restoredState_then_wmDoesNotGoBack() throws Exception {
         EventTimePolicy<Long> eventTimePolicy = eventTimePolicy(Long::longValue, limitingLag(0), 1, 0, 5);
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(eventTimePolicy);
         eventTimeMapper.addPartitions(0L, 1);
@@ -176,7 +176,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void when_twoActiveQueues_theLaggingOneRemoved_then_wmForwarded() {
+    public void when_twoActiveQueues_theLaggingOneRemoved_then_wmForwarded() throws Exception {
         EventTimePolicy<Long> eventTimePolicy = eventTimePolicy(Long::longValue, limitingLag(0), 1, 0, 5);
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(eventTimePolicy);
         eventTimeMapper.addPartitions(0L, 2);
@@ -189,7 +189,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void when_twoActiveQueues_theAheadOneRemoved_then_noWmForwarded() {
+    public void when_twoActiveQueues_theAheadOneRemoved_then_noWmForwarded() throws Exception {
         EventTimePolicy<Long> eventTimePolicy = eventTimePolicy(Long::longValue, limitingLag(0), 1, 0, 5);
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(eventTimePolicy);
         eventTimeMapper.addPartitions(0L, 2);
@@ -203,7 +203,7 @@ public class EventTimeMapperTest {
     }
 
     @Test
-    public void when_threePartitions_laggingOneRemoved_secondLaggingOneIdle_then_noWmForwarded() {
+    public void when_threePartitions_laggingOneRemoved_secondLaggingOneIdle_then_noWmForwarded() throws Exception {
         EventTimePolicy<Long> eventTimePolicy = eventTimePolicy(Long::longValue, limitingLag(0), 1, 0, 5);
         EventTimeMapper<Long> eventTimeMapper = new EventTimeMapper<>(eventTimePolicy);
         eventTimeMapper.addPartitions(0L, 3);
@@ -218,7 +218,7 @@ public class EventTimeMapperTest {
         assertTraverser(eventTimeMapper.removePartition(ns(5), 1), wm(12));
     }
 
-    private <T> void assertTraverser(Traverser<T> actual, T ... expected) {
+    private <T> void assertTraverser(Traverser<T> actual, T ... expected) throws Exception {
         for (T element : expected) {
             assertEquals(element, actual.next());
         }
