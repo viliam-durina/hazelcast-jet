@@ -21,6 +21,7 @@ import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.core.Inbox;
 import com.hazelcast.jet.core.ProcessorSupplier;
 import com.hazelcast.jet.core.ResettableSingletonTraverser;
+import com.hazelcast.jet.core.Watermark;
 import com.hazelcast.jet.pipeline.ServiceFactory;
 
 import javax.annotation.Nonnull;
@@ -46,6 +47,10 @@ public final class AsyncTransformUsingServiceBatchedP<C, S, T, R>
         extends AsyncTransformUsingServiceOrderedP<C, S, List<T>, R> {
 
     private final int maxBatchSize;
+    private List<T> currentBatch;
+    private int currentBatchOrdinal;
+    private int tryProcessWithoutProcessCount;
+    private Watermark withheldWatermark;
 
     /**
      * Constructs a processor with the given mapping function.
@@ -59,18 +64,67 @@ public final class AsyncTransformUsingServiceBatchedP<C, S, T, R>
     ) {
         super(serviceFactory, serviceContext, maxConcurrentOps, callAsyncFn);
         this.maxBatchSize = maxBatchSize;
+        this.currentBatch = new ArrayList<>(maxBatchSize);
+    }
+
+    @Override
+    public boolean tryProcess() {
+        if (tryProcessWithoutProcessCount++ == 2) {
+            sendBatch();
+        }
+        return super.tryProcess();
     }
 
     @Override
     public void process(int ordinal, @Nonnull Inbox inbox) {
+        tryProcessWithoutProcessCount = 0;
         if (isQueueFull() && !tryFlushQueue()) {
             return;
         }
-        // put the inbox items into a list and pass to the superclass as a single item
-        List<T> batch = new ArrayList<>(Math.min(inbox.size(), maxBatchSize));
-        inbox.drainTo(batch, maxBatchSize);
-        boolean success = super.tryProcess(ordinal, batch);
+        if (ordinal != currentBatchOrdinal) {
+            sendBatch();
+            currentBatchOrdinal = ordinal;
+            assert currentBatch.isEmpty() : "current batch not empty";
+        }
+        inbox.drainTo(currentBatch, maxBatchSize - currentBatch.size());
+        assert currentBatch.size() <= maxBatchSize : "currentBatch.size=" + currentBatch.size()
+                + ", maxBatchSize=" + maxBatchSize;
+        if (currentBatch.size() == maxBatchSize) {
+            sendBatch();
+        }
+    }
+
+    @Override
+    public boolean tryProcessWatermark(@Nonnull Watermark watermark) {
+        if (currentBatch.isEmpty()) {
+            return super.tryProcessWatermark(watermark);
+        }
+        withheldWatermark = watermark;
+        return true;
+    }
+
+    @Override
+    public boolean complete() {
+        if (isQueueFull() && !tryFlushQueue()) {
+            return false;
+        }
+        sendBatch();
+        return super.complete();
+    }
+
+    private void sendBatch() {
+        if (currentBatch.isEmpty()) {
+            return;
+        }
+        assert !isQueueFull() : "sendBatch() called with full queue";
+        boolean success = super.tryProcess(currentBatchOrdinal, currentBatch);
         assert success : "the superclass didn't handle the batch";
+        currentBatch = new ArrayList<>(maxBatchSize);
+        if (withheldWatermark != null) {
+            success = super.tryProcessWatermark(withheldWatermark);
+            assert success : "the superclass didn't handle the watermark";
+            withheldWatermark = null;
+        }
     }
 
     /**
