@@ -30,8 +30,11 @@ import com.hazelcast.jet.sql.impl.opt.physical.ValuesPhysicalRel;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.sql.impl.QueryParameterMetadata;
 import com.hazelcast.sql.impl.calcite.opt.AbstractScanRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.MapIndexScanPhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.MapScanPhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.ReplicatedMapScanPhysicalRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.ReplicatedToDistributedPhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.RootPhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.NodeIdVisitor;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.PlanCreateVisitor;
@@ -158,6 +161,21 @@ public class CreateDagVisitor extends ThrowingPhysicalRelVisitor {
     @Override
     public void onMapScan(MapScanPhysicalRel rel) {
         push(imdgVertex(rel));
+    }
+
+    @Override
+    public void onMapIndexScan(MapIndexScanPhysicalRel rel) {
+        push(imdgVertex(rel));
+    }
+
+    @Override
+    public void onReplicatedMapScan(ReplicatedMapScanPhysicalRel rel) {
+        push(imdgVertex(rel));
+    }
+
+    @Override
+    public void onReplicatedToDistributed(ReplicatedToDistributedPhysicalRel rel) {
+        super.onReplicatedToDistributed(rel);
     }
 
     private Vertex imdgVertex(PhysicalRel rel) {
