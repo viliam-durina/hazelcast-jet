@@ -17,7 +17,7 @@
 package com.hazelcast.jet.sql.impl.opt.logical;
 
 import com.hazelcast.jet.sql.impl.opt.AbstractFullScanRel;
-import com.hazelcast.jet.sql.impl.opt.OptUtils;
+import com.hazelcast.sql.impl.calcite.opt.OptUtils;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.core.Project;

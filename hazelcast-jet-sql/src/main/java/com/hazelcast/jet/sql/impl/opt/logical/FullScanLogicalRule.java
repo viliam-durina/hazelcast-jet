@@ -16,7 +16,7 @@
 
 package com.hazelcast.jet.sql.impl.opt.logical;
 
-import com.hazelcast.jet.sql.impl.opt.OptUtils;
+import com.hazelcast.sql.impl.calcite.opt.OptUtils;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
 import com.hazelcast.sql.impl.schema.map.AbstractMapTable;
 import org.apache.calcite.plan.Convention;
