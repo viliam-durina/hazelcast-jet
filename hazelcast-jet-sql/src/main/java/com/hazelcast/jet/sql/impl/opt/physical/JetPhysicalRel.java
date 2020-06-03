@@ -18,10 +18,11 @@ package com.hazelcast.jet.sql.impl.opt.physical;
 
 import com.hazelcast.jet.sql.impl.opt.physical.visitor.CreateDagVisitor;
 import com.hazelcast.sql.impl.QueryParameterMetadata;
+import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.visitor.PhysicalRelVisitor;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.RexToExpressionVisitor;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.plan.node.PlanNodeSchema;
-import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexNode;
 
 import java.util.List;
@@ -31,7 +32,7 @@ import static java.util.stream.Collectors.toList;
 /**
  * Marker interface for logical relations.
  */
-public interface PhysicalRel extends RelNode {
+public interface JetPhysicalRel extends PhysicalRel {
 
     // TODO: moved to PlanNode as part of CreateDagVisitor ???
     PlanNodeSchema schema();
@@ -61,5 +62,9 @@ public interface PhysicalRel extends RelNode {
      *
      * @param visitor Visitor.
      */
-    void visit(CreateDagVisitor visitor);
+    void visit0(CreateDagVisitor visitor);
+
+    default void visit(PhysicalRelVisitor visitor) {
+        visit0((CreateDagVisitor) visitor);
+    }
 }

@@ -18,6 +18,7 @@ package com.hazelcast.jet.sql.impl.opt.physical;
 
 import com.hazelcast.jet.sql.impl.opt.physical.visitor.CreateDagVisitor;
 import com.hazelcast.jet.sql.impl.schema.JetTable;
+import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
 import com.hazelcast.sql.impl.plan.node.PlanNodeSchema;
 import com.hazelcast.sql.impl.schema.TableField;
@@ -36,7 +37,7 @@ import java.util.List;
 
 import static com.hazelcast.jet.impl.util.Util.toList;
 
-public class InsertPhysicalRel extends TableModify implements PhysicalRel {
+public class InsertPhysicalRel extends TableModify implements JetPhysicalRel {
 
     private static final double COST_FACTOR = .1;
 
@@ -62,7 +63,7 @@ public class InsertPhysicalRel extends TableModify implements PhysicalRel {
     }
 
     @Override
-    public void visit(CreateDagVisitor visitor) {
+    public void visit0(CreateDagVisitor visitor) {
         visitor.onInsert(this);
 
         ((PhysicalRel) getInput()).visit(visitor);

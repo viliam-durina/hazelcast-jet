@@ -26,10 +26,8 @@ import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.jet.core.processor.SinkProcessors;
 import com.hazelcast.jet.sql.impl.opt.OptUtils;
-import com.hazelcast.jet.sql.impl.opt.logical.LogicalRel;
-import com.hazelcast.jet.sql.impl.opt.logical.LogicalRules;
-import com.hazelcast.jet.sql.impl.opt.physical.PhysicalRel;
-import com.hazelcast.jet.sql.impl.opt.physical.PhysicalRules;
+import com.hazelcast.jet.sql.impl.opt.logical.JetLogicalRules;
+import com.hazelcast.jet.sql.impl.opt.physical.JetPhysicalRules;
 import com.hazelcast.jet.sql.impl.opt.physical.visitor.CreateDagVisitor;
 import com.hazelcast.jet.sql.impl.schema.JetTable;
 import com.hazelcast.jet.sql.impl.validate.JetSqlValidator;
@@ -38,6 +36,8 @@ import com.hazelcast.sql.SqlCursor;
 import com.hazelcast.sql.impl.JetSqlBackend;
 import com.hazelcast.sql.impl.SingleValueCursor;
 import com.hazelcast.sql.impl.calcite.OptimizerContext;
+import com.hazelcast.sql.impl.calcite.opt.logical.LogicalRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
 import com.hazelcast.sql.impl.optimizer.SqlPlan;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
@@ -71,7 +71,7 @@ public class JetSqlBackendImpl implements JetSqlBackend, ManagedService {
     }
 
     @Override
-    public JetPlan optimizeAndCreatePlan(Object context0, Object inputRel0) {
+    public JetPlan optimizeAndCreatePlan(NodeEngine nodeEngine, Object context0, Object inputRel0) {
         OptimizerContext context = (OptimizerContext) context0;
         RelNode inputRel = (RelNode) inputRel0;
 
@@ -101,10 +101,10 @@ public class JetSqlBackendImpl implements JetSqlBackend, ManagedService {
         int cursorColumnCount = 0;
         boolean isDml = inputRel instanceof TableModify;
         if (isDml) {
-            dag = createDag(physicalRel, null);
+            dag = createDag(nodeEngine, physicalRel, null);
         } else {
             observableName = "sql-sink-" + UuidUtil.newUnsecureUuidString();
-            dag = createDag(physicalRel, SinkProcessors.writeObservableP(observableName));
+            dag = createDag(nodeEngine, physicalRel, SinkProcessors.writeObservableP(observableName));
             cursorColumnCount = physicalRel.getRowType().getFieldCount();
         }
 
@@ -146,7 +146,7 @@ public class JetSqlBackendImpl implements JetSqlBackend, ManagedService {
      * @return Optimized logical tree.
      */
     private LogicalRel optimizeLogical(OptimizerContext context, RelNode rel) {
-        return (LogicalRel) context.optimize(rel, LogicalRules.getRuleSet(),
+        return (LogicalRel) context.optimize(rel, JetLogicalRules.getRuleSet(),
                 OptUtils.toLogicalConvention(rel.getTraitSet()));
     }
 
@@ -158,15 +158,18 @@ public class JetSqlBackendImpl implements JetSqlBackend, ManagedService {
      * @return Optimized physical tree.
      */
     private PhysicalRel optimizePhysical(OptimizerContext context, RelNode rel) {
-        return (PhysicalRel) context.optimize(rel, PhysicalRules.getRuleSet(),
+        return (PhysicalRel) context.optimize(rel, JetPhysicalRules.getRuleSet(),
                 OptUtils.toPhysicalConvention(rel.getTraitSet()));
     }
 
-    private DAG createDag(PhysicalRel physicalRel, ProcessorMetaSupplier sinkSupplier) {
+    private DAG createDag(NodeEngine nodeEngine, PhysicalRel physicalRel, ProcessorMetaSupplier sinkSupplier) {
         DAG dag = new DAG();
         Vertex sink = sinkSupplier != null ? dag.newVertex("sink", sinkSupplier) : null;
 
-        CreateDagVisitor visitor = new CreateDagVisitor(dag, sink);
+        // TODO [viliam] assert the rel structure. JetPhysicalRel must be at the root and under
+        //  non-JetPhysicalRel nodes there must be no JetPhysicalRel nodes
+
+        CreateDagVisitor visitor = new CreateDagVisitor(nodeEngine, dag, sink);
         physicalRel.visit(visitor);
         return dag;
     }

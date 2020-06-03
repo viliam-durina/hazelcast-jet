@@ -23,8 +23,8 @@ import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 
-import static com.hazelcast.jet.sql.impl.opt.JetConventions.LOGICAL;
-import static com.hazelcast.jet.sql.impl.opt.JetConventions.PHYSICAL;
+import static com.hazelcast.sql.impl.calcite.opt.HazelcastConventions.LOGICAL;
+import static com.hazelcast.sql.impl.calcite.opt.HazelcastConventions.PHYSICAL;
 import static org.apache.calcite.plan.RelOptRule.convert;
 
 /**

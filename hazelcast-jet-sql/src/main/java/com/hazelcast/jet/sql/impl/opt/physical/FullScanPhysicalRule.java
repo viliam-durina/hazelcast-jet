@@ -17,11 +17,11 @@
 package com.hazelcast.jet.sql.impl.opt.physical;
 
 import com.hazelcast.jet.sql.impl.opt.OptUtils;
-import com.hazelcast.jet.sql.impl.opt.logical.FullScanLogicalRel;
+import com.hazelcast.jet.sql.impl.opt.logical.ConnectorScanLogicalRel;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 
-import static com.hazelcast.jet.sql.impl.opt.JetConventions.LOGICAL;
+import static com.hazelcast.sql.impl.calcite.opt.HazelcastConventions.LOGICAL;
 
 /**
  * Convert logical full scan to physical full scan.
@@ -32,17 +32,17 @@ public final class FullScanPhysicalRule extends RelOptRule {
 
     private FullScanPhysicalRule() {
         super(
-                OptUtils.single(FullScanLogicalRel.class, LOGICAL),
+                OptUtils.single(ConnectorScanLogicalRel.class, LOGICAL),
                 FullScanPhysicalRule.class.getSimpleName()
         );
     }
 
     @Override
     public void onMatch(RelOptRuleCall call) {
-        FullScanLogicalRel scan = call.rel(0);
+        ConnectorScanLogicalRel scan = call.rel(0);
 
         // Add normal map scan.
-        call.transformTo(new FullScanPhysicalRel(
+        call.transformTo(new ConnectorScanPhysicalRel(
                 scan.getCluster(),
                 OptUtils.toPhysicalConvention(scan.getTraitSet()),
                 scan.getTable(),

@@ -24,7 +24,7 @@ import org.apache.calcite.rel.convert.ConverterRule;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
 
-import static com.hazelcast.jet.sql.impl.opt.JetConventions.LOGICAL;
+import static com.hazelcast.sql.impl.calcite.opt.HazelcastConventions.LOGICAL;
 
 public final class InsertLogicalRule extends ConverterRule {
 

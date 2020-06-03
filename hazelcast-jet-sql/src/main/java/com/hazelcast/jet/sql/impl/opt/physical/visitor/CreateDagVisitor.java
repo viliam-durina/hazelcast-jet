@@ -20,13 +20,23 @@ import com.hazelcast.function.ConsumerEx;
 import com.hazelcast.function.FunctionEx;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
+import com.hazelcast.jet.sql.impl.ImdgPlanProcessor;
 import com.hazelcast.jet.sql.impl.expression.ExpressionUtil;
-import com.hazelcast.jet.sql.impl.opt.physical.FullScanPhysicalRel;
+import com.hazelcast.jet.sql.impl.opt.physical.ConnectorScanPhysicalRel;
 import com.hazelcast.jet.sql.impl.opt.physical.InsertPhysicalRel;
 import com.hazelcast.jet.sql.impl.opt.physical.NestedLoopJoinPhysicalRel;
 import com.hazelcast.jet.sql.impl.opt.physical.ProjectPhysicalRel;
 import com.hazelcast.jet.sql.impl.opt.physical.ValuesPhysicalRel;
+import com.hazelcast.spi.impl.NodeEngine;
+import com.hazelcast.sql.impl.QueryParameterMetadata;
+import com.hazelcast.sql.impl.calcite.opt.AbstractScanRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.MapScanPhysicalRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.RootPhysicalRel;
+import com.hazelcast.sql.impl.calcite.opt.physical.visitor.NodeIdVisitor;
+import com.hazelcast.sql.impl.calcite.opt.physical.visitor.PlanCreateVisitor;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
+import com.hazelcast.sql.impl.plan.ImdgPlan;
 import com.hazelcast.sql.impl.schema.Table;
 import org.apache.calcite.util.ConversionUtil;
 import org.apache.calcite.util.NlsString;
@@ -36,6 +46,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 
 import static com.hazelcast.jet.core.Edge.between;
 import static com.hazelcast.jet.core.processor.Processors.mapP;
@@ -43,12 +54,14 @@ import static com.hazelcast.jet.core.processor.SourceProcessors.convenientSource
 import static com.hazelcast.jet.impl.util.Util.toList;
 import static com.hazelcast.jet.sql.impl.connector.SqlConnectorUtil.getJetSqlConnector;
 
-public class CreateDagVisitor {
+public class CreateDagVisitor extends ThrowingPhysicalRelVisitor {
 
+    private final NodeEngine nodeEngine;
     private final DAG dag;
     private final Deque<VertexAndOrdinal> vertexStack;
 
-    public CreateDagVisitor(@Nonnull DAG dag, @Nullable Vertex sink) {
+    public CreateDagVisitor(@Nonnull NodeEngine nodeEngine, @Nonnull DAG dag, @Nullable Vertex sink) {
+        this.nodeEngine = nodeEngine;
         this.dag = dag;
         this.vertexStack = new ArrayDeque<>();
 
@@ -92,7 +105,7 @@ public class CreateDagVisitor {
         vertexStack.push(new VertexAndOrdinal(vertex));
     }
 
-    public void onFullScan(FullScanPhysicalRel rel) {
+    public void onFullScan(ConnectorScanPhysicalRel rel) {
         Table table = rel.getTableUnwrapped();
 
         Vertex vertex = getJetSqlConnector(table)
@@ -101,13 +114,38 @@ public class CreateDagVisitor {
     }
 
     public void onNestedLoopRead(NestedLoopJoinPhysicalRel rel) {
-        FullScanPhysicalRel rightRel = (FullScanPhysicalRel) rel.getRight();
+        if (rel.getRight() instanceof  ConnectorScanPhysicalRel) {
+            ConnectorScanPhysicalRel rightRel = (ConnectorScanPhysicalRel) rel.getRight();
 
         Table table = rightRel.getTableUnwrapped();
 
         Vertex vertex = getJetSqlConnector(table)
                 .nestedLoopReader(dag, table, rightRel.filter(), rightRel.projection(), rel.condition());
         push(vertex);
+        } else if (rel.getRight() instanceof AbstractScanRel) {
+            RootPhysicalRel root = new RootPhysicalRel(rel.getRight().getCluster(), rel.getRight().getTraitSet(), rel.getRight()); // TODO ?
+            NodeIdVisitor idVisitor = new NodeIdVisitor();
+            root.visit(idVisitor);
+            Map<PhysicalRel, List<Integer>> relIdMap = idVisitor.getIdMap();
+
+            QueryParameterMetadata parameterMetadata = QueryParameterMetadata.EMPTY;
+
+            PlanCreateVisitor visitor = new PlanCreateVisitor(
+                    nodeEngine,
+                    relIdMap,
+                    "", // we don't have the part of the SQL for this subtree
+                    parameterMetadata
+            );
+
+            root.visit(visitor);
+            ImdgPlan plan = visitor.getPlan();
+
+            Vertex vertex = dag.newVertex("name-TODO",
+                    new ImdgPlanProcessor.MetaSupplier(plan, 0)); // TODO multiple fragments
+            push(vertex);
+        } else {
+            throw new RuntimeException("Unexpected right input: " + rel.getRight());
+        }
     }
 
     public void onProject(ProjectPhysicalRel rel) {
@@ -115,6 +153,39 @@ public class CreateDagVisitor {
 
         Vertex vertex = dag.newVertex("project", mapP(projection::apply));
         push(vertex);
+    }
+
+    @Override
+    public void onMapScan(MapScanPhysicalRel rel) {
+        push(imdgVertex(rel));
+    }
+
+    private Vertex imdgVertex(PhysicalRel rel) {
+        RootPhysicalRel root = new RootPhysicalRel(rel.getCluster(), rel.getTraitSet(), rel); // TODO ?
+        NodeIdVisitor idVisitor = new NodeIdVisitor();
+        root.visit(idVisitor);
+        Map<PhysicalRel, List<Integer>> relIdMap = idVisitor.getIdMap();
+
+        QueryParameterMetadata parameterMetadata = QueryParameterMetadata.EMPTY;
+
+        PlanCreateVisitor visitor = new PlanCreateVisitor(
+                nodeEngine,
+                relIdMap,
+                "", // we don't have the part of the SQL for this subtree
+                parameterMetadata
+        );
+
+        root.visit(visitor);
+        ImdgPlan plan = visitor.getPlan();
+
+        if (plan.getFragmentCount() != 1) {
+            throw new UnsupportedOperationException("Fragment count other than 1 not yet supported (TODO)"); // TODO multiple fragments
+        }
+
+        Vertex vertex = dag.newVertex("name-TODO",
+                new ImdgPlanProcessor.MetaSupplier(plan, 0));
+
+        return vertex;
     }
 
     private void push(Vertex vertex) {

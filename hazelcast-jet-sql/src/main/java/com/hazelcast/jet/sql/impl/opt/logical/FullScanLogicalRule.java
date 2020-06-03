@@ -17,13 +17,15 @@
 package com.hazelcast.jet.sql.impl.opt.logical;
 
 import com.hazelcast.jet.sql.impl.opt.OptUtils;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
+import com.hazelcast.sql.impl.schema.map.AbstractMapTable;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.ConverterRule;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 
-import static com.hazelcast.jet.sql.impl.opt.JetConventions.LOGICAL;
+import static com.hazelcast.sql.impl.calcite.opt.HazelcastConventions.LOGICAL;
 
 public final class FullScanLogicalRule extends ConverterRule {
 
@@ -39,8 +41,12 @@ public final class FullScanLogicalRule extends ConverterRule {
     @Override
     public RelNode convert(RelNode rel) {
         LogicalTableScan scan = (LogicalTableScan) rel;
+        HazelcastTable table = scan.getTable().unwrap(HazelcastTable.class);
+        if (table.getTarget() instanceof AbstractMapTable) {
+            return null;
+        }
 
-        return new FullScanLogicalRel(
+        return new ConnectorScanLogicalRel(
                 scan.getCluster(),
                 OptUtils.toLogicalConvention(scan.getTraitSet()),
                 scan.getTable(),

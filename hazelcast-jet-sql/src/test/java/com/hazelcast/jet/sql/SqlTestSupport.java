@@ -60,7 +60,7 @@ public abstract class SqlTestSupport extends SimpleTestInClusterSupport {
     protected static void assertRowsEventuallyAnyOrder(String sql, Collection<Row> expectedRows) {
         try {
             List<Row> actualRows = spawn(() -> executeSql(sql, expectedRows.size()))
-                    .get(5, TimeUnit.SECONDS);
+                    .get(30, TimeUnit.SECONDS);
 
             assertThat(actualRows).containsExactlyInAnyOrderElementsOf(expectedRows);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {

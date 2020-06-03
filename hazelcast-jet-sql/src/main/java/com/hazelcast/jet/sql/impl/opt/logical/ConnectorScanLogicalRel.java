@@ -16,24 +16,33 @@
 
 package com.hazelcast.jet.sql.impl.opt.logical;
 
+import com.hazelcast.jet.sql.impl.opt.AbstractFullScanRel;
+import com.hazelcast.sql.impl.calcite.opt.logical.LogicalRel;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexNode;
 
-public class FilterLogicalRel extends Filter implements LogicalRel {
-    public FilterLogicalRel(
+import java.util.List;
+
+/**
+ * A scan over a source connector.
+ */
+public class ConnectorScanLogicalRel extends AbstractFullScanRel implements LogicalRel {
+
+    public ConnectorScanLogicalRel(
         RelOptCluster cluster,
-        RelTraitSet traits,
-        RelNode input,
-        RexNode condition
+            RelTraitSet traitSet,
+            RelOptTable table,
+            List<RexNode> projection,
+            RexNode filter
     ) {
-        super(cluster, traits, input, condition);
+        super(cluster, traitSet, table, projection, filter);
     }
 
     @Override
-    public final Filter copy(RelTraitSet traitSet, RelNode input, RexNode condition) {
-        return new FilterLogicalRel(getCluster(), traitSet, input, condition);
+    public final RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+        return new ConnectorScanLogicalRel(getCluster(), traitSet, table, getProjection(), getFilter());
     }
 }

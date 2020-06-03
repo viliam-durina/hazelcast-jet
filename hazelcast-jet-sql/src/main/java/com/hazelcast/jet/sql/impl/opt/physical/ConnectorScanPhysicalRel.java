@@ -34,11 +34,13 @@ import java.util.List;
 import static java.util.stream.Collectors.toList;
 
 /**
- * Physical full scan over a source connector.
+ * A scan over a source connector. It might be a full scan, index scan or
+ * other, depending on what the connector is able to do with the
+ * filter/projection.
  */
-public class FullScanPhysicalRel extends AbstractFullScanRel implements PhysicalRel {
+public class ConnectorScanPhysicalRel extends AbstractFullScanRel implements JetPhysicalRel {
 
-    public FullScanPhysicalRel(
+    public ConnectorScanPhysicalRel(
             RelOptCluster cluster,
             RelTraitSet traitSet,
             RelOptTable table,
@@ -67,12 +69,12 @@ public class FullScanPhysicalRel extends AbstractFullScanRel implements Physical
     }
 
     @Override
-    public void visit(CreateDagVisitor visitor) {
+    public void visit0(CreateDagVisitor visitor) {
         visitor.onFullScan(this);
     }
 
     @Override
     public final RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new FullScanPhysicalRel(getCluster(), traitSet, getTable(), getProjection(), getFilter());
+        return new ConnectorScanPhysicalRel(getCluster(), traitSet, getTable(), getProjection(), getFilter());
     }
 }

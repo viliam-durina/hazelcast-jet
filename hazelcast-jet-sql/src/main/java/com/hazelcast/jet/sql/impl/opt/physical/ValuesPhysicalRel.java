@@ -32,7 +32,7 @@ import java.util.List;
 
 import static java.util.stream.Collectors.toList;
 
-public class ValuesPhysicalRel extends Values implements PhysicalRel {
+public class ValuesPhysicalRel extends Values implements JetPhysicalRel {
 
     ValuesPhysicalRel(
             RelOptCluster cluster,
@@ -52,7 +52,7 @@ public class ValuesPhysicalRel extends Values implements PhysicalRel {
     }
 
     @Override
-    public void visit(CreateDagVisitor visitor) {
+    public void visit0(CreateDagVisitor visitor) {
         visitor.onValues(this);
     }
 

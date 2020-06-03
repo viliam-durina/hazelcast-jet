@@ -16,6 +16,9 @@
 
 package com.hazelcast.jet.sql.impl.opt.logical;
 
+import com.hazelcast.sql.impl.calcite.opt.logical.FilterIntoScanLogicalRule;
+import com.hazelcast.sql.impl.calcite.opt.logical.MapScanLogicalRule;
+import com.hazelcast.sql.impl.calcite.opt.logical.ProjectIntoScanLogicalRule;
 import com.hazelcast.sql.impl.calcite.opt.logical.ProjectLogicalRule;
 import org.apache.calcite.rel.rules.FilterJoinRule.FilterIntoJoinRule;
 import org.apache.calcite.rel.rules.FilterMergeRule;
@@ -27,9 +30,9 @@ import org.apache.calcite.rel.rules.ValuesReduceRule;
 import org.apache.calcite.tools.RuleSet;
 import org.apache.calcite.tools.RuleSets;
 
-public final class LogicalRules {
+public final class JetLogicalRules {
 
-    private LogicalRules() {
+    private JetLogicalRules() {
     }
 
     public static RuleSet getRuleSet() {
@@ -48,9 +51,8 @@ public final class LogicalRules {
                 ProjectFilterTransposeRule.INSTANCE,
                 // ProjectJoinTransposeRule.INSTANCE,
                 ProjectRemoveRule.INSTANCE,
-                // TODO [viliam] IMap-specific rules, move into SqlConnector
-                ProjectIntoScanLogicalRule.INSTANCE,
-                FilterIntoScanLogicalRule.INSTANCE,
+                JetProjectIntoScanLogicalRule.INSTANCE,
+                JetFilterIntoScanLogicalRule.INSTANCE,
                 FilterIntoJoinRule.FILTER_ON_JOIN,
                 ValuesReduceRule.FILTER_INSTANCE,
                 ValuesReduceRule.PROJECT_FILTER_INSTANCE,
@@ -70,10 +72,15 @@ public final class LogicalRules {
 
                 // AggregateLogicalRule.INSTANCE,
                 // SortLogicalRule.INSTANCE,
-                JoinLogicalRule.INSTANCE
+                JoinLogicalRule.INSTANCE,
 
                 // TODO: Transitive closures:
                 //  (a.a=b.b) AND (a=1) -> (a.a=b.b) AND (a=1) AND (b=1) -> pushdown to two tables, not one
+
+                // IMDG rules: local imap/replicatedMap scanning
+                MapScanLogicalRule.INSTANCE,
+                ProjectIntoScanLogicalRule.INSTANCE,
+                FilterIntoScanLogicalRule.INSTANCE
         );
     }
 }

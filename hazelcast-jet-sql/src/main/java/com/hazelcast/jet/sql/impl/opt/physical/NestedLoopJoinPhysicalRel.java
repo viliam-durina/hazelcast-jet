@@ -17,6 +17,7 @@
 package com.hazelcast.jet.sql.impl.opt.physical;
 
 import com.hazelcast.jet.sql.impl.opt.physical.visitor.CreateDagVisitor;
+import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.plan.node.PlanNodeSchema;
 import org.apache.calcite.plan.RelOptCluster;
@@ -28,7 +29,7 @@ import org.apache.calcite.rex.RexNode;
 
 import java.util.Collections;
 
-public class NestedLoopJoinPhysicalRel extends Join implements PhysicalRel {
+public class NestedLoopJoinPhysicalRel extends Join implements JetPhysicalRel {
 
     public NestedLoopJoinPhysicalRel(
             RelOptCluster cluster,
@@ -49,13 +50,13 @@ public class NestedLoopJoinPhysicalRel extends Join implements PhysicalRel {
 
     @Override
     public PlanNodeSchema schema() {
-        PlanNodeSchema leftSchema = ((PhysicalRel) getLeft()).schema();
-        PlanNodeSchema rightSchema = ((PhysicalRel) getRight()).schema();
+        PlanNodeSchema leftSchema = ((JetPhysicalRel) getLeft()).schema();
+        PlanNodeSchema rightSchema = ((JetPhysicalRel) getRight()).schema();
         return PlanNodeSchema.combine(leftSchema, rightSchema);
     }
 
     @Override
-    public void visit(CreateDagVisitor visitor) {
+    public void visit0(CreateDagVisitor visitor) {
         visitor.onNestedLoopRead(this);
 
         ((PhysicalRel) getLeft()).visit(visitor);

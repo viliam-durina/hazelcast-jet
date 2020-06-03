@@ -17,6 +17,7 @@
 package com.hazelcast.jet.sql.impl.opt.physical;
 
 import com.hazelcast.jet.sql.impl.opt.physical.visitor.CreateDagVisitor;
+import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.plan.node.PlanNodeSchema;
 import org.apache.calcite.plan.RelOptCluster;
@@ -28,7 +29,7 @@ import org.apache.calcite.rex.RexNode;
 
 import java.util.List;
 
-public class ProjectPhysicalRel extends Project implements PhysicalRel {
+public class ProjectPhysicalRel extends Project implements JetPhysicalRel {
 
     public ProjectPhysicalRel(
             RelOptCluster cluster,
@@ -46,11 +47,11 @@ public class ProjectPhysicalRel extends Project implements PhysicalRel {
 
     @Override
     public PlanNodeSchema schema() {
-        return ((PhysicalRel) getInput()).schema();
+        return ((JetPhysicalRel) getInput()).schema();
     }
 
     @Override
-    public void visit(CreateDagVisitor visitor) {
+    public void visit0(CreateDagVisitor visitor) {
         visitor.onProject(this);
 
         ((PhysicalRel) getInput()).visit(visitor);
