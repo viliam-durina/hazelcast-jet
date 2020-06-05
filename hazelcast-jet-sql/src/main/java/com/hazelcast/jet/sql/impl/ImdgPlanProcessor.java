@@ -230,18 +230,15 @@ public class ImdgPlanProcessor extends AbstractProcessor {
         private boolean last;
 
         private final Traverser<Row> traverser = () -> {
-            if (currentBatch == null) {
+            if (currentBatch == null || currentBatchIndex == currentBatch.size()) {
                 currentBatch = queue.poll();
                 currentBatchIndex = 0;
             }
             if (currentBatch != null) {
-                try {
-                    return currentBatch.get(currentBatchIndex);
-                } finally {
-                    currentBatchIndex++;
-                    if (currentBatchIndex == currentBatch.size())
-                        currentBatch = null;
+                if (currentBatchIndex == currentBatch.size()) {
+                    return null;
                 }
+                return currentBatch.get(currentBatchIndex++);
             }
             return null;
         };

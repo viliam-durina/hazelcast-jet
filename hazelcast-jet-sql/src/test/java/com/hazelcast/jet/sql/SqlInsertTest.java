@@ -18,6 +18,7 @@ package com.hazelcast.jet.sql;
 
 import com.hazelcast.map.IMap;
 import com.hazelcast.sql.impl.connector.LocalPartitionedMapConnector;
+import com.hazelcast.sql.impl.connector.LocalReplicatedMapConnector;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -33,8 +34,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 import static com.hazelcast.jet.core.TestUtil.createMap;
@@ -49,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 public class SqlInsertTest extends SqlTestSupport {
 
     private static final String INT_TO_STRING_MAP_SRC = "int_to_string_map_src";
+    private static final String INT_TO_STRING_R_MAP_SRC = "int_to_string_r_map_src";
     private static final String INT_TO_STRING_MAP_SINK = "int_to_string_map_sink";
 
     private static final String PERSON_MAP_SINK = "person_map_sink";
@@ -61,6 +61,10 @@ public class SqlInsertTest extends SqlTestSupport {
         executeSql(
                 format("CREATE EXTERNAL TABLE %s (__key INT, this VARCHAR) TYPE \"%s\"",
                 INT_TO_STRING_MAP_SRC, LocalPartitionedMapConnector.TYPE_NAME)
+        );
+        executeSql(
+                format("CREATE EXTERNAL TABLE %s (__key INT, this VARCHAR) TYPE \"%s\"",
+                INT_TO_STRING_R_MAP_SRC, LocalReplicatedMapConnector.TYPE_NAME)
         );
         executeSql(
                 format("CREATE EXTERNAL TABLE %s (__key INT, this VARCHAR) TYPE \"%s\"",
@@ -150,21 +154,6 @@ public class SqlInsertTest extends SqlTestSupport {
                 INT_TO_STRING_MAP_SINK,
                 "INSERT OVERWRITE " + INT_TO_STRING_MAP_SINK + " SELECT * FROM " + INT_TO_STRING_MAP_SRC,
                 createMap(0, "value-0", 1, "value-1"));
-    }
-
-    @Test
-    public void insert_select_large() {
-        IMap<Integer, String> intToStringMap = instance().getMap(INT_TO_STRING_MAP_SRC);
-        Map<Integer, String> items = new HashMap<>(16384);
-        for (int i = 0; i < 16384; i++) {
-            items.put(i, "value-" + i);
-        }
-        intToStringMap.putAll(items);
-
-        assertMapEventually(
-                INT_TO_STRING_MAP_SINK,
-                "INSERT OVERWRITE " + INT_TO_STRING_MAP_SINK + " SELECT * FROM " + INT_TO_STRING_MAP_SRC,
-                items);
     }
 
     @Test
