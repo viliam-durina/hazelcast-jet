@@ -39,7 +39,7 @@ import com.hazelcast.sql.impl.calcite.opt.physical.RootPhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.NodeIdVisitor;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.PlanCreateVisitor;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
-import com.hazelcast.sql.impl.plan.ImdgPlan;
+import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.schema.Table;
 import org.apache.calcite.util.ConversionUtil;
 import org.apache.calcite.util.NlsString;
@@ -141,7 +141,7 @@ public class CreateDagVisitor extends ThrowingPhysicalRelVisitor {
             );
 
             root.visit(visitor);
-            ImdgPlan plan = visitor.getPlan();
+            Plan plan = visitor.getPlan();
 
             Vertex vertex = dag.newVertex("name-TODO",
                     new ImdgPlanProcessor.MetaSupplier(plan, 0)); // TODO multiple fragments
@@ -194,7 +194,7 @@ public class CreateDagVisitor extends ThrowingPhysicalRelVisitor {
         );
 
         root.visit(visitor);
-        ImdgPlan plan = visitor.getPlan();
+        Plan plan = visitor.getPlan();
 
         if (plan.getFragmentCount() != 1) {
             throw new UnsupportedOperationException("Fragment count other than 1 not yet supported (TODO)"); // TODO multiple fragments

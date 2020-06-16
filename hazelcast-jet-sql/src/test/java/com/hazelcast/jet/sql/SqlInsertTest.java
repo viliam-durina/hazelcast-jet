@@ -58,6 +58,8 @@ public class SqlInsertTest extends SqlTestSupport {
 
     @BeforeClass
     public static void beforeClass() {
+        initialize(1, null);
+
         executeSql(
                 format("CREATE EXTERNAL TABLE %s (__key INT, this VARCHAR) TYPE \"%s\"",
                 INT_TO_STRING_MAP_SRC, LocalPartitionedMapConnector.TYPE_NAME)

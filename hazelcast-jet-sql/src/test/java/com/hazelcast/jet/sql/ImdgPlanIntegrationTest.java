@@ -16,70 +16,100 @@
 
 package com.hazelcast.jet.sql;
 
+import com.hazelcast.config.IndexConfig;
+import com.hazelcast.config.IndexType;
+import com.hazelcast.config.MapConfig;
+import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.map.IMap;
+import com.hazelcast.replicatedmap.ReplicatedMap;
 import com.hazelcast.sql.impl.connector.LocalPartitionedMapConnector;
 import com.hazelcast.sql.impl.connector.LocalReplicatedMapConnector;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
 import static com.hazelcast.jet.impl.util.Util.toList;
-import static java.lang.String.format;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class ImdgPlanIntegrationTest extends SqlTestSupport {
 
-    private static final String INT_TO_STRING_MAP_SRC = "int_to_string_map_src";
-    private static final String INT_TO_STRING_R_MAP_SRC = "int_to_string_r_map_src";
+    private static final String TEST_IMAP = "test_imap";
+    private static final String TEST_R_MAP = "test_r_map";
 
     @BeforeClass
     public static void beforeClass() {
-        executeSql(
-                format("CREATE EXTERNAL TABLE %s (__key INT, this VARCHAR) TYPE \"%s\"",
-                        INT_TO_STRING_MAP_SRC, LocalPartitionedMapConnector.TYPE_NAME)
-        );
-        executeSql(
-                format("CREATE EXTERNAL TABLE %s (__key INT, this VARCHAR) TYPE \"%s\"",
-                        INT_TO_STRING_R_MAP_SRC, LocalReplicatedMapConnector.TYPE_NAME)
-        );
+        JetConfig jetConfig = new JetConfig();
+
+        jetConfig.getHazelcastConfig().addMapConfig(new MapConfig(TEST_IMAP)
+                .addIndexConfig(new IndexConfig(IndexType.HASH, "indexedField")));
+        initialize(1, jetConfig);
+
+        executeSql("CREATE EXTERNAL TABLE " + TEST_IMAP + "(__key INT, indexedField VARCHAR, normalField VARCHAR) " +
+                "TYPE \"" + LocalPartitionedMapConnector.TYPE_NAME + "\"");
+        executeSql("CREATE EXTERNAL TABLE " + TEST_R_MAP + "(__key INT, indexedField VARCHAR, normalField VARCHAR) " +
+                        "TYPE \"" + LocalReplicatedMapConnector.TYPE_NAME + "\"");
     }
 
     @Test
     public void select_empty() {
-        assertRowsEventuallyAnyOrder("SELECT /*+ jet */ * FROM " + INT_TO_STRING_MAP_SRC,
+        assertRowsEventuallyAnyOrder("SELECT /*+ jet */ * FROM " + TEST_IMAP,
                 emptyList());
     }
 
     @Test
     public void select_large() {
-        IMap<Integer, String> intToStringMap = instance().getMap(INT_TO_STRING_MAP_SRC);
-        Map<Integer, String> items = new HashMap<>(16384);
-        for (int i = 0; i < 16384; i++) {
-            items.put(i, "value-" + i);
-        }
-        intToStringMap.putAll(items);
+        IMap<Integer, ValueClass> map = instance().getMap(TEST_IMAP);
+        Map<Integer, ValueClass> items = generateItems();
+        map.putAll(items);
 
-        assertRowsEventuallyAnyOrder("SELECT /*+ jet */ * FROM " + INT_TO_STRING_MAP_SRC,
-                toList(items.entrySet(), en -> new Row(en.getKey(), en.getValue())));
+        assertRowsEventuallyAnyOrder("SELECT /*+ jet */ * FROM " + TEST_IMAP,
+                toList(items.entrySet(), en -> new Row(en.getKey(), en.getValue().indexedField, en.getValue().normalField)));
     }
 
     @Test
     public void select_replicated_large() {
-        IMap<Integer, String> intToStringMap = instance().getMap(INT_TO_STRING_MAP_SRC);
-        Map<Integer, String> items = new HashMap<>(16384);
-        for (int i = 0; i < 16384; i++) {
-            items.put(i, "value-" + i);
-        }
-        intToStringMap.putAll(items);
+        ReplicatedMap<Object, Object> map = instance().getReplicatedMap(TEST_R_MAP);
+        Map<Integer, ValueClass> items = generateItems();
+        map.putAll(items);
 
-        assertRowsEventuallyAnyOrder("SELECT /*+ jet */ * FROM " + INT_TO_STRING_MAP_SRC,
-                toList(items.entrySet(), en -> new Row(en.getKey(), en.getValue())));
+        assertRowsEventuallyAnyOrder("SELECT /*+ jet */ * FROM " + TEST_R_MAP,
+                toList(items.entrySet(), en -> new Row(en.getKey(), en.getValue().indexedField, en.getValue().normalField)));
     }
 
     @Test
-    public void test_tumble_REMOVEME() {
-        executeQuery("select * from TABLE(TUMBLE(TABLE int_to_string_map_src, DESCRIPTOR(__key), interval '1' minute))");
+    public void select_using_indexScan() {
+        IMap<Integer, ValueClass> map = instance().getMap(TEST_IMAP);
+        map.putAll(generateItems());
+
+        assertRowsEventuallyAnyOrder("SELECT /*+ jet */ * FROM " + TEST_IMAP + " WHERE indexedField = 'indexed-123'",
+                singletonList(new Row(123, "indexed-123", "normal-123")));
+    }
+
+    @Nonnull
+    private Map<Integer, ValueClass> generateItems() {
+        Map<Integer, ValueClass> items = new HashMap<>(16384);
+        for (int i = 0; i < 16384; i++) {
+            items.put(i, new ValueClass("indexed-" + i, "normal-" + i));
+        }
+        return items;
+    }
+
+    public static final class ValueClass implements Serializable {
+        public String indexedField;
+        public String normalField;
+
+        public ValueClass(String indexedField, String normalField) {
+            this.indexedField = indexedField;
+            this.normalField = normalField;
+        }
+
+        public String getIndexedField() {
+            return indexedField;
+        }
     }
 }

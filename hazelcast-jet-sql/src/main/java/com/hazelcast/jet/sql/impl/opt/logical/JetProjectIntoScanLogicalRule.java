@@ -18,6 +18,8 @@ package com.hazelcast.jet.sql.impl.opt.logical;
 
 import com.hazelcast.jet.sql.impl.opt.AbstractFullScanRel;
 import com.hazelcast.sql.impl.calcite.opt.OptUtils;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
+import com.hazelcast.sql.impl.schema.map.AbstractMapTable;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.core.Project;
@@ -40,6 +42,10 @@ public final class JetProjectIntoScanLogicalRule extends RelOptRule {
     public void onMatch(RelOptRuleCall call) {
         Project project = call.rel(0);
         TableScan scan = call.rel(1);
+        HazelcastTable table = scan.getTable().unwrap(HazelcastTable.class);
+        if (table.getTarget() instanceof AbstractMapTable) {
+            return;
+        }
 
         ConnectorScanLogicalRel fullScanRel = new ConnectorScanLogicalRel(
                 scan.getCluster(),

@@ -17,6 +17,8 @@
 package com.hazelcast.jet.sql.impl.opt.logical;
 
 import com.hazelcast.sql.impl.calcite.opt.OptUtils;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
+import com.hazelcast.sql.impl.schema.map.AbstractMapTable;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.core.Filter;
@@ -60,6 +62,10 @@ public final class JetFilterIntoScanLogicalRule extends RelOptRule {
     public void onMatch(RelOptRuleCall call) {
         Filter filter = call.rel(0);
         TableScan scan = call.rel(1);
+        HazelcastTable table = scan.getTable().unwrap(HazelcastTable.class);
+        if (table.getTarget() instanceof AbstractMapTable) {
+            return;
+        }
 
         List<RexNode> projection;
         RexNode oldFilter;

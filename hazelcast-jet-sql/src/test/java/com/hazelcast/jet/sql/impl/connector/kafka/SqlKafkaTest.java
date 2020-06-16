@@ -52,6 +52,8 @@ public class SqlKafkaTest extends SqlTestSupport {
 
     @BeforeClass
     public static void beforeClass() throws IOException {
+        initialize(1, null);
+
         kafkaTestSupport = new KafkaTestSupport();
         kafkaTestSupport.createKafkaCluster();
     }

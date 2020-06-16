@@ -20,7 +20,6 @@ import com.hazelcast.jet.SimpleTestInClusterSupport;
 import com.hazelcast.jet.sql.impl.connector.kafka.SqlKafkaTest;
 import com.hazelcast.sql.SqlCursor;
 import com.hazelcast.sql.SqlRow;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,11 +37,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public abstract class SqlTestSupport extends SimpleTestInClusterSupport {
 
-    @BeforeClass
-    public static void setUpClass() {
-        initialize(1, null);
-    }
-
     protected static <K, V> void assertMapEventually(String name, String sql, Map<K, V> expected) {
         executeSql(sql);
 
@@ -55,7 +49,7 @@ public abstract class SqlTestSupport extends SimpleTestInClusterSupport {
 
     protected static void assertRowsEventuallyAnyOrder(String sql, Collection<Row> expectedRows) {
         try {
-            List<Row> actualRows = spawn(() -> executeSql(sql, expectedRows.size()))
+            List<Row> actualRows = spawn(() -> executeSql(sql))
                     .get(30, TimeUnit.SECONDS);
 
             assertThat(actualRows).containsExactlyInAnyOrderElementsOf(expectedRows);
@@ -64,19 +58,11 @@ public abstract class SqlTestSupport extends SimpleTestInClusterSupport {
         }
     }
 
-    protected static void executeSql(String sql) {
-        try (SqlCursor cursor = executeQuery(sql)) {
-            cursor.iterator().forEachRemaining(o -> { });
-        } catch (Exception e) {
-            throw sneakyThrow(e);
-        }
-    }
-
-    private static List<Row> executeSql(String sql, int numberOfExpectedRows) {
+    public static List<Row> executeSql(String sql) {
         try (SqlCursor cursor = executeQuery(sql)) {
             Iterator<SqlRow> iterator = cursor.iterator();
-            List<Row> rows = new ArrayList<>(numberOfExpectedRows);
-            for (int i = 0; i < numberOfExpectedRows; i++) {
+            List<Row> rows = new ArrayList<>();
+            while (iterator.hasNext()) {
                 rows.add(new Row(cursor.getColumnCount(), iterator.next()));
             }
             return rows;

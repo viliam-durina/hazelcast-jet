@@ -20,12 +20,18 @@ import com.hazelcast.cluster.Address;
 import com.hazelcast.cluster.Member;
 import com.hazelcast.instance.impl.HazelcastInstanceImpl;
 import com.hazelcast.internal.serialization.InternalSerializationService;
+import com.hazelcast.internal.serialization.impl.SerializationUtil;
+import com.hazelcast.internal.util.UUIDSerializationUtil;
+import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.Processor;
 import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.core.ProcessorSupplier;
 import com.hazelcast.jet.core.processor.Processors;
+import com.hazelcast.nio.ObjectDataInput;
+import com.hazelcast.nio.ObjectDataOutput;
+import com.hazelcast.nio.serialization.DataSerializable;
 import com.hazelcast.sql.impl.NodeServiceProvider;
 import com.hazelcast.sql.impl.NodeServiceProviderImpl;
 import com.hazelcast.sql.impl.QueryException;
@@ -33,13 +39,14 @@ import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.IterationResult;
 import com.hazelcast.sql.impl.exec.root.RootResultConsumer;
-import com.hazelcast.sql.impl.plan.ImdgPlan;
-import com.hazelcast.sql.impl.plan.PlanFragmentMapping;
+import com.hazelcast.sql.impl.plan.Plan;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.state.QueryStateCallback;
 import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
@@ -55,17 +62,16 @@ import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 import static java.util.Collections.emptyList;
 
 public class ImdgPlanProcessor extends AbstractProcessor {
-    private final ImdgPlan plan;
-    private final int fragmentIndex;
-
+    private final PartitionIdSet partitionIdSet;
+    private final PlanNode fragment;
     private Exec exec;
 
     private Traverser<Object[]> traverser;
     private boolean done;
 
-    public ImdgPlanProcessor(ImdgPlan plan, int fragmentIndex) {
-        this.plan = plan;
-        this.fragmentIndex = fragmentIndex;
+    public ImdgPlanProcessor(PartitionIdSet partitionIdSet, PlanNode fragment) {
+        this.partitionIdSet = partitionIdSet;
+        this.fragment = fragment;
     }
 
     @Override
@@ -87,11 +93,11 @@ public class ImdgPlanProcessor extends AbstractProcessor {
                 16, // TODO ?
                 null,
                 null,
-                plan.getPartitionMap().get(uuid),
+                partitionIdSet,
                 outboxBatchSize
         );
 
-        plan.getFragment(fragmentIndex).visit(visitor);
+        fragment.visit(visitor);
         exec = visitor.getExec();
 
         QueryStateCallback callback = new QueryStateCallback() {
@@ -142,22 +148,17 @@ public class ImdgPlanProcessor extends AbstractProcessor {
         return emitFromTraverser(traverser) && done;
     }
 
-    public static class PSupplier implements ProcessorSupplier {
+    public static class PSupplier implements ProcessorSupplier, DataSerializable {
 
-        private final ImdgPlan plan;
-        private final int fragmentIndex;
+        private PartitionIdSet partitionIdSet;
+        private PlanNode fragment;
 
-        private transient boolean runsOnThisMember;
+        @SuppressWarnings("unused") // for deserialization
+        public PSupplier() { }
 
-        public PSupplier(ImdgPlan plan, int fragmentIndex) {
-            this.plan = plan;
-            this.fragmentIndex = fragmentIndex;
-        }
-
-        @Override
-        public void init(@Nonnull Context context) {
-            UUID localMemberId = context.jetInstance().getHazelcastInstance().getCluster().getLocalMember().getUuid();
-            runsOnThisMember = plan.getFragmentMapping(fragmentIndex).getMemberIds().contains(localMemberId);
+        public PSupplier(PartitionIdSet partitionIdSet, PlanNode fragment) {
+            this.partitionIdSet = partitionIdSet;
+            this.fragment = fragment;
         }
 
         @Nonnull @Override
@@ -166,24 +167,38 @@ public class ImdgPlanProcessor extends AbstractProcessor {
                 throw new RuntimeException("expected count is 1, but is " + count);
             }
 
-            if (runsOnThisMember) {
-                return Collections.singleton(new ImdgPlanProcessor(plan, fragmentIndex));
-            } else {
-                return Collections.singleton(Processors.noopP().get());
-            }
+            return Collections.singleton(new ImdgPlanProcessor(partitionIdSet, fragment));
+        }
+
+        @Override
+        public void writeData(ObjectDataOutput out) throws IOException {
+            SerializationUtil.writeNullablePartitionIdSet(partitionIdSet, out);
+            out.writeObject(fragment);
+        }
+
+        @Override
+        public void readData(ObjectDataInput in) throws IOException {
+            partitionIdSet = SerializationUtil.readNullablePartitionIdSet(in);
+            fragment = in.readObject();
         }
     }
 
-    public static class MetaSupplier implements ProcessorMetaSupplier {
+    public static class MetaSupplier implements ProcessorMetaSupplier, DataSerializable {
 
-        private final ImdgPlan plan;
-        private final int fragmentIndex;
+        private Map<UUID, PartitionIdSet> partitionMap;
+        private Collection<UUID> fragmentMapping;
+        private PlanNode fragment;
 
         private transient Context context;
 
-        public MetaSupplier(ImdgPlan plan, int fragmentIndex) {
-            this.plan = plan;
-            this.fragmentIndex = fragmentIndex;
+        @SuppressWarnings("unused") // for deserialization
+        public MetaSupplier() {
+        }
+
+        public MetaSupplier(Plan plan, int fragmentIndex) {
+            this.partitionMap = plan.getPartitionMap();
+            this.fragmentMapping = plan.getFragmentMapping(fragmentIndex).getMemberIds();
+            this.fragment = plan.getFragment(fragmentIndex);
         }
 
         @Override
@@ -199,7 +214,6 @@ public class ImdgPlanProcessor extends AbstractProcessor {
         @Nonnull @Override
         public Function<? super Address, ? extends ProcessorSupplier> get(@Nonnull List<Address> addresses) {
             Set<Member> members = context.jetInstance().getCluster().getMembers();
-            PlanFragmentMapping fragmentMapping = plan.getFragmentMapping(fragmentIndex);
 
             // build a temporary mapping from uuid to address
             Map<UUID, Address> uuidToAddress = new HashMap<>();
@@ -207,18 +221,50 @@ public class ImdgPlanProcessor extends AbstractProcessor {
                 uuidToAddress.put(member.getUuid(), member.getAddress());
             }
 
-            // check that all members in the fragment mapping are present in the given addresses
-            for (UUID memberId : fragmentMapping.getMemberIds()) {
+            // create suppliers
+            Map<Address, ProcessorSupplier> suppliers = new HashMap<>();
+            for (UUID memberId : fragmentMapping) {
                 Address address = uuidToAddress.get(memberId);
                 if (address == null) {
-                    throw new RuntimeException("A member supposed to run the local map part is gone");
+                    throw new RuntimeException("A member supposed to run the operation is not in the cluster");
                 }
                 if (!addresses.contains(address)) {
                     throw new RuntimeException("The job doesn't run on a required member");
                 }
+                suppliers.put(address, new PSupplier(partitionMap.get(memberId), fragment));
             }
 
-            return address -> new PSupplier(plan, 0);
+            return address -> suppliers.getOrDefault(address, ProcessorSupplier.of(Processors.noopP()));
+        }
+
+        @Override
+        public void writeData(ObjectDataOutput out) throws IOException {
+            // Write partition map
+            out.writeInt(partitionMap.size());
+
+            for (Map.Entry<UUID, PartitionIdSet> entry : partitionMap.entrySet()) {
+                UUIDSerializationUtil.writeUUID(out, entry.getKey());
+                SerializationUtil.writeNullablePartitionIdSet(entry.getValue(), out);
+            }
+
+            out.writeObject(fragmentMapping);
+            out.writeObject(fragment);
+        }
+
+        @Override
+        public void readData(ObjectDataInput in) throws IOException {
+            // Read partition map
+            int partitionMappingCnt = in.readInt();
+            partitionMap = new HashMap<>(partitionMappingCnt);
+
+            for (int i = 0; i < partitionMappingCnt; i++) {
+                partitionMap.put(
+                        UUIDSerializationUtil.readUUID(in),
+                        SerializationUtil.readNullablePartitionIdSet(in));
+            }
+
+            fragmentMapping = in.readObject();
+            fragment = in.readObject();
         }
     }
 
