@@ -93,7 +93,9 @@ public class BlockHoundTest {
                     }
                     return t.getName().contains("my-pool-");
                 });
-            }).allowBlockingCallsInside("java.lang.Thread.UncaughtExceptionHandler", "uncaughtException");
+            })
+                   .allowBlockingCallsInside("java.lang.ThreadGroup", "uncaughtException")
+                   .allowBlockingCallsInside("java.util.concurrent.ThreadPoolExecutor", "getTask");
         }
     }
 }
