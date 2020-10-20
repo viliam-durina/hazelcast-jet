@@ -34,10 +34,12 @@ import com.hazelcast.jet.pipeline.StreamSource;
 import com.hazelcast.jet.pipeline.test.TestSources;
 import com.hazelcast.map.EntryProcessor;
 import com.hazelcast.map.IMap;
+import com.rabbitmq.jms.admin.RMQConnectionFactory;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.apache.activemq.artemis.junit.EmbeddedActiveMQResource;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.testcontainers.containers.RabbitMQContainer;
 import reactor.blockhound.BlockHound;
 
 import javax.annotation.Nonnull;
@@ -216,9 +218,45 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
 
             p.readFrom(source)
              .withoutTimestamps()
-             .writeTo(assertCollectedEventually(2, items -> {
-                 assertContainsAll(items, Arrays.asList("msg-0", "msg-1"));
-             }));
+             .writeTo(assertCollectedEventually(2, items -> assertContainsAll(items, Arrays.asList("msg-0", "msg-1"))));
+
+            JmsTestUtil.sendMessages(connectionFactorySupplier.get(), queueName, true, 2);
+
+            Job job = instance().newJob(p);
+            assertThatThrownBy(() -> job.getFuture().get(2, SECONDS))
+                    .isInstanceOf(TimeoutException.class);
+        } finally {
+            broker.stop();
+        }
+    }
+
+    @Test
+    public void test_jmsSource_RabbitMq() throws JMSException {
+        RabbitMQContainer broker = new RabbitMQContainer("rabbitmq:3.8");
+        broker.start();
+
+        try {
+            String url = broker.getAmqpUrl();
+
+            SupplierEx<? extends ConnectionFactory> connectionFactorySupplier = () -> {
+                RMQConnectionFactory factory = new RMQConnectionFactory();
+                factory.setUri(url);
+                return factory;
+            };
+            String queueName = "queue";
+
+            StreamSource<String> source = Sources.jmsQueueBuilder(connectionFactorySupplier)
+                                                 .maxGuarantee(ProcessingGuarantee.NONE) // does not make a difference
+                                                 .connectionFn(ConnectionFactory::createConnection)
+                                                 .consumerFn(session -> session.createConsumer(session.createQueue(queueName)))
+                                                 .messageIdFn(m -> {
+                                                     throw new UnsupportedOperationException();
+                                                 })
+                                                 .build(message -> ((TextMessage) message).getText());
+
+            p.readFrom(source)
+             .withoutTimestamps()
+             .writeTo(assertCollectedEventually(2, items -> assertContainsAll(items, Arrays.asList("msg-0", "msg-1"))));
 
             JmsTestUtil.sendMessages(connectionFactorySupplier.get(), queueName, true, 2);
 
