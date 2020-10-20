@@ -17,25 +17,33 @@
 package com.hazelcast.jet.impl.connector;
 
 import com.google.common.collect.Lists;
+import com.hazelcast.function.SupplierEx;
 import com.hazelcast.jet.Job;
 import com.hazelcast.jet.Observable;
 import com.hazelcast.jet.SimpleTestInClusterSupport;
 import com.hazelcast.jet.Util;
 import com.hazelcast.jet.config.JetConfig;
+import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.function.Observer;
 import com.hazelcast.jet.impl.JetBlockHoundIntegration;
 import com.hazelcast.jet.pipeline.JournalInitialPosition;
 import com.hazelcast.jet.pipeline.Pipeline;
 import com.hazelcast.jet.pipeline.Sinks;
 import com.hazelcast.jet.pipeline.Sources;
+import com.hazelcast.jet.pipeline.StreamSource;
 import com.hazelcast.jet.pipeline.test.TestSources;
 import com.hazelcast.map.EntryProcessor;
 import com.hazelcast.map.IMap;
+import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
+import org.apache.activemq.artemis.junit.EmbeddedActiveMQResource;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import reactor.blockhound.BlockHound;
 
 import javax.annotation.Nonnull;
+import javax.jms.ConnectionFactory;
+import javax.jms.JMSException;
+import javax.jms.TextMessage;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -103,9 +111,7 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
     public void test_assertionSink() {
         p.readFrom(TestSources.longStream(1, 0))
          .withoutTimestamps()
-         .writeTo(assertCollectedEventually(2, items -> {
-             assertContainsAll(items, Arrays.asList(0L, 1L));
-         }));
+         .writeTo(assertCollectedEventually(2, items -> assertContainsAll(items, Arrays.asList(0L, 1L))));
 
         Job job = instance().newJob(p);
         assertThatThrownBy(() -> job.getFuture().get(2, SECONDS))
@@ -186,6 +192,42 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
          .writeTo(Sinks.noop());
 
         instance().newJob(p).join();
+    }
+
+    @Test
+    public void test_jmsSource_ActiveMq() throws JMSException {
+        EmbeddedActiveMQResource broker = new EmbeddedActiveMQResource();
+        broker.start();
+
+        try {
+            String url = broker.getVmURL();
+
+            SupplierEx<? extends ConnectionFactory> connectionFactorySupplier = () -> new ActiveMQConnectionFactory(url);
+            String queueName = "queue";
+
+            StreamSource<String> source = Sources.jmsQueueBuilder(connectionFactorySupplier)
+                                                 .maxGuarantee(ProcessingGuarantee.NONE) // does not make a difference
+                                                 .connectionFn(ConnectionFactory::createConnection)
+                                                 .consumerFn(session -> session.createConsumer(session.createQueue(queueName)))
+                                                 .messageIdFn(m -> {
+                                                     throw new UnsupportedOperationException();
+                                                 })
+                                                 .build(message -> ((TextMessage) message).getText());
+
+            p.readFrom(source)
+             .withoutTimestamps()
+             .writeTo(assertCollectedEventually(2, items -> {
+                 assertContainsAll(items, Arrays.asList("msg-0", "msg-1"));
+             }));
+
+            JmsTestUtil.sendMessages(connectionFactorySupplier.get(), queueName, true, 2);
+
+            Job job = instance().newJob(p);
+            assertThatThrownBy(() -> job.getFuture().get(2, SECONDS))
+                    .isInstanceOf(TimeoutException.class);
+        } finally {
+            broker.stop();
+        }
     }
 
     private static final class CollectingObserver implements Observer<Long> {
