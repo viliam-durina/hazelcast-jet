@@ -21,7 +21,7 @@ public class BlockHoundTest {
     @BeforeClass
     public static void setUpClass() {
         BlockHound.builder()
-                  .with(new JetBlockHoundIntegration())
+                  .with(new TestBlockHoundIntegration())
                   .install();
     }
 
@@ -48,7 +48,46 @@ public class BlockHoundTest {
         }
     }
 
-    public static class JetBlockHoundIntegration implements BlockHoundIntegration {
+    @Test
+    public void test_detectingWaitingForAMonitor() throws TimeoutException, InterruptedException {
+        try {
+            System.out.println("here0");
+            Object monitor = new Object();
+
+            FutureTask<?> task = new FutureTask<>(() -> {
+                System.out.println("here1");
+                try {
+                    synchronized (monitor) {
+                        System.out.println("here2");
+                        return "";
+                    }
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                    throw e;
+                }
+            });
+            System.out.println("here3");
+            synchronized (monitor) {
+                System.out.println("here4");
+                Executors.newSingleThreadExecutor(new ThreadFactory() {
+                    private final AtomicInteger count = new AtomicInteger();
+
+                    @Override
+                    public Thread newThread(@Nonnull Runnable r) {
+                        return new Thread(r, "my-pool-" + count.getAndIncrement());
+                    }
+                }).execute(task);
+                Thread.sleep(4000);
+            }
+
+            task.get(10, TimeUnit.SECONDS);
+            Assert.fail("should fail");
+        } catch (ExecutionException e) {
+            Assert.assertTrue("detected", e.getCause() instanceof BlockingOperationError);
+        }
+    }
+
+    public static class TestBlockHoundIntegration implements BlockHoundIntegration {
 
         @Override
         public void applyTo(BlockHound.Builder builder) {
@@ -59,7 +98,7 @@ public class BlockHoundTest {
                     }
                     return t.getName().contains("my-pool-");
                 });
-            });
+            }).allowBlockingCallsInside("java.lang.Thread.UncaughtExceptionHandler", "uncaughtException");
         }
     }
 }

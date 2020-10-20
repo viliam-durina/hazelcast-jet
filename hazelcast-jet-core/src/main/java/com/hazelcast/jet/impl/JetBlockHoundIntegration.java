@@ -22,7 +22,10 @@ import reactor.blockhound.integration.BlockHoundIntegration;
 public class JetBlockHoundIntegration implements BlockHoundIntegration {
     @Override
     public void applyTo(Builder builder) {
-        builder.nonBlockingThreadPredicate(current -> current.or(
-                t -> t.getName() != null && t.getName().contains("jet.cooperative.thread-")));
+        builder
+                .nonBlockingThreadPredicate(current -> current.or(
+                        t -> t.getName() != null && t.getName().contains("jet.cooperative.thread-")))
+                .allowBlockingCallsInside(
+                        "com.hazelcast.jet.impl.execution.TaskletExecutionService.CooperativeWorker", "doIdle");
     }
 }

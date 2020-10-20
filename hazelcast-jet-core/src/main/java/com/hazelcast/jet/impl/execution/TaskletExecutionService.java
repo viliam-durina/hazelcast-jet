@@ -348,11 +348,16 @@ public class TaskletExecutionService {
                 if (progressTracker.isMadeProgress()) {
                     idleCount = 0;
                 } else {
-                    idlerLocal.idle(++idleCount);
+                    idleCount = doIdle(idlerLocal, idleCount);
                 }
             }
             trackers.forEach(t -> t.executionTracker.taskletDone());
             trackers.clear();
+        }
+
+        private long doIdle(IdleStrategy idlerLocal, long idleCount) {
+            idlerLocal.idle(++idleCount);
+            return idleCount;
         }
 
         private void runTasklet(TaskletTracker t) {
