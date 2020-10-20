@@ -11,10 +11,12 @@ import javax.annotation.Nonnull;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class BlockHoundTest {
 
@@ -26,7 +28,7 @@ public class BlockHoundTest {
     }
 
     @Test
-    public void blockHoundWorks() throws TimeoutException, InterruptedException {
+    public void blockHoundWorks() throws Exception {
         try {
             FutureTask<?> task = new FutureTask<>(() -> {
                 Thread.sleep(0);
@@ -41,10 +43,35 @@ public class BlockHoundTest {
                 }
             }).execute(task);
 
-            task.get(10, TimeUnit.SECONDS);
+            task.get(10, SECONDS);
             Assert.fail("should fail");
         } catch (ExecutionException e) {
             Assert.assertTrue("detected", e.getCause() instanceof BlockingOperationError);
+        }
+    }
+
+    @Test
+    public void test_semaphore_tryAcquire() throws Exception {
+        try {
+            Semaphore s = new Semaphore(0);
+            FutureTask<?> task = new FutureTask<>(() -> {
+                s.tryAcquire(1, SECONDS);
+                return "";
+            });
+            Executors.newSingleThreadExecutor(new ThreadFactory() {
+                private final AtomicInteger count = new AtomicInteger();
+
+                @Override
+                public Thread newThread(@Nonnull Runnable r) {
+                    return new Thread(r, "my-pool-" + count.getAndIncrement());
+                }
+            }).execute(task);
+
+            task.get(10, SECONDS);
+            Assert.fail("should fail");
+        } catch (ExecutionException e) {
+            Assert.assertTrue("detected", e.getCause() instanceof BlockingOperationError);
+            e.printStackTrace();
         }
     }
 
@@ -75,7 +102,7 @@ public class BlockHoundTest {
                 Thread.sleep(1000);
             }
 
-            task.get(10, TimeUnit.SECONDS);
+            task.get(10, SECONDS);
             Assert.fail("should fail");
         } catch (ExecutionException e) {
             Assert.assertTrue("detected", e.getCause() instanceof BlockingOperationError);
