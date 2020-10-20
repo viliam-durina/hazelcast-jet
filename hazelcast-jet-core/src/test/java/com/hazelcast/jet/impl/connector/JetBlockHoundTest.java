@@ -18,10 +18,13 @@ package com.hazelcast.jet.impl.connector;
 
 import com.google.common.collect.Lists;
 import com.hazelcast.function.SupplierEx;
+import com.hazelcast.jet.Jet;
+import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.Job;
 import com.hazelcast.jet.Observable;
 import com.hazelcast.jet.SimpleTestInClusterSupport;
 import com.hazelcast.jet.Util;
+import com.hazelcast.jet.config.JetClientConfig;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.function.Observer;
@@ -37,6 +40,7 @@ import com.hazelcast.map.IMap;
 import com.rabbitmq.jms.admin.RMQConnectionFactory;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.apache.activemq.artemis.junit.EmbeddedActiveMQResource;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.testcontainers.containers.RabbitMQContainer;
@@ -65,6 +69,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class JetBlockHoundTest extends SimpleTestInClusterSupport {
 
+    private static JetInstance remoteMember;
+    private static JetClientConfig clientConfig;
+    private static JetInstance remoteClient;
+
     private final Pipeline p = Pipeline.create();
 
     @BeforeClass
@@ -75,7 +83,22 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
 
         JetConfig config = new JetConfig();
         config.getHazelcastConfig().getMapConfig("journaled-*").getEventJournalConfig().setEnabled(true);
-        initialize(2, config);
+        initializeWithClient(2, config, null);
+
+        JetConfig config2 = new JetConfig();
+        config2.getHazelcastConfig().getMapConfig("journaled-*").getEventJournalConfig().setEnabled(true);
+        config2.getHazelcastConfig().setClusterName(randomName());
+        remoteMember = Jet.newJetInstance(config2);
+
+        clientConfig = new JetClientConfig();
+        clientConfig.setClusterName(config2.getHazelcastConfig().getClusterName());
+
+        remoteClient = Jet.newJetClient(clientConfig);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        remoteMember.getHazelcastInstance().getLifecycleService().terminate();
     }
 
     @Test
@@ -87,19 +110,29 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
         Job job = instance().newJob(p);
         assertThatThrownBy(() -> job.getFuture().get(2, SECONDS))
                 .isInstanceOf(TimeoutException.class);
-
     }
 
     @Test
-    public void test_mapJournal() {
+    public void test_mapJournal_local() {
+        test_mapJournal(false);
+    }
+
+    @Test
+    public void test_mapJournal_remote() {
+        test_mapJournal(true);
+    }
+
+    private void test_mapJournal(boolean remote) {
         String mapName = "journaled-" + randomName();
-        p.readFrom(Sources.mapJournal(mapName, JournalInitialPosition.START_FROM_OLDEST))
+        p.readFrom(remote
+                ? Sources.remoteMapJournal(mapName, clientConfig, JournalInitialPosition.START_FROM_OLDEST)
+                : Sources.mapJournal(mapName, JournalInitialPosition.START_FROM_OLDEST))
          .withoutTimestamps()
          .writeTo(Sinks.noop());
         Job job = instance().newJob(p);
         assertJobStatusEventually(job, RUNNING);
 
-        IMap<Integer, String> map = instance().getMap(mapName);
+        IMap<Integer, String> map = (remote ? remoteClient : instance()).getMap(mapName);
         for (int i = 0; i < 1000; i++) {
             map.put(i, "v");
             sleepMillis(1);
@@ -151,17 +184,37 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
     }
 
     @Test
-    public void test_readMapP() {
+    public void test_readMapP_local() {
+        test_readMapP(false);
+    }
+
+    @Test
+    public void test_readMapP_remote() {
+        test_readMapP(true);
+    }
+
+    private void test_readMapP(boolean remote) {
         String mapName = randomName();
-        instance().getMap(mapName).putAll(IntStream.range(0, 10_000).boxed().collect(toMap(i -> i, i -> i)));
-        p.readFrom(Sources.map(mapName))
+        (remote ? remoteClient : instance()).getMap(mapName).putAll(IntStream.range(0, 10_000).boxed().collect(toMap(i -> i, i -> i)));
+        p.readFrom(remote
+                ? Sources.remoteMap(mapName, clientConfig)
+                : Sources.map(mapName))
          .writeTo(Sinks.noop());
 
         instance().newJob(p).join();
     }
 
     @Test
-    public void test_writeMapP() {
+    public void test_writeMapP_local() {
+        test_writeMapP(false);
+    }
+
+    @Test
+    public void test_writeMapP_remote() {
+        test_writeMapP(true);
+    }
+
+    private void test_writeMapP(boolean remote) {
         p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
          .map(i -> Util.entry(i, i))
          .writeTo(Sinks.map(randomName()));
@@ -170,19 +223,43 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
     }
 
     @Test
-    public void test_mapWithUpdating() {
+    public void test_mapWithUpdating_loca() {
+        test_mapWithUpdating(false);
+    }
+
+    @Test
+    public void test_mapWithUpdating_remote() {
+        test_mapWithUpdating(true);
+    }
+
+    private void test_mapWithUpdating(boolean remote) {
         p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
-         .writeTo(Sinks.<Integer, Integer, Integer>mapWithUpdating(randomName(), i -> i % 100,
-                 (v, item) -> v == null ? 1 : v + 1));
+         .writeTo(remote
+                ? Sinks.<Integer, Integer, Integer>remoteMapWithUpdating(randomName(), clientConfig, i -> i % 100,
+                    (v, item) -> v == null ? 1 : v + 1)
+                : Sinks.<Integer, Integer, Integer>mapWithUpdating(randomName(), i -> i % 100,
+                    (v, item) -> v == null ? 1 : v + 1));
 
         instance().newJob(p).join();
     }
 
     @Test
-    public void test_mapWithEntryProcessor() {
+    public void test_mapWithEntryProcessor_local() {
+        test_mapWithEntryProcessor(false);
+    }
+
+    @Test
+    public void test_mapWithEntryProcessor_remote() {
+        test_mapWithEntryProcessor(true);
+    }
+
+    private void test_mapWithEntryProcessor(boolean remote) {
         p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
-         .writeTo(Sinks.mapWithEntryProcessor(randomName(), i -> i % 100,
-                 (item) -> new IncrementByOneEntryProcessor()));
+         .writeTo(remote
+                ? Sinks.remoteMapWithEntryProcessor(randomName(), clientConfig, i -> i % 100,
+                    (item) -> new IncrementByOneEntryProcessor())
+                 : Sinks.mapWithEntryProcessor(randomName(), i -> i % 100,
+                    (item) -> new IncrementByOneEntryProcessor()));
 
         instance().newJob(p).join();
     }
