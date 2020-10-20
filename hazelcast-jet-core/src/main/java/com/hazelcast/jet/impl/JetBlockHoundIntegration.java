@@ -27,7 +27,6 @@ public class JetBlockHoundIntegration implements BlockHoundIntegration {
                         t -> t.getName() != null && t.getName().contains("jet.cooperative.thread-")))
                 .allowBlockingCallsInside(
                         "com.hazelcast.jet.impl.execution.TaskletExecutionService.CooperativeWorker", "doIdle")
-                .allowBlockingCallsInside("Exception", "printStackTrace")
         ;
     }
 }
