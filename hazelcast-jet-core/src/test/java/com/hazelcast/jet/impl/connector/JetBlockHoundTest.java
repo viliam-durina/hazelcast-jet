@@ -217,13 +217,15 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
     private void test_writeMapP(boolean remote) {
         p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
          .map(i -> Util.entry(i, i))
-         .writeTo(Sinks.map(randomName()));
+         .writeTo(remote
+                 ? Sinks.remoteMap(randomName(), clientConfig)
+                 : Sinks.map(randomName()));
 
         instance().newJob(p).join();
     }
 
     @Test
-    public void test_mapWithUpdating_loca() {
+    public void test_mapWithUpdating_local() {
         test_mapWithUpdating(false);
     }
 

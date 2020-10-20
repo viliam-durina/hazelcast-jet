@@ -23,13 +23,21 @@ public class JetBlockHoundIntegration implements BlockHoundIntegration {
     @Override
     public void applyTo(Builder builder) {
         builder
-                .nonBlockingThreadPredicate(current -> current.or(
-                        t -> t.getName() != null && t.getName().contains("jet.cooperative.thread-")))
+                .nonBlockingThreadPredicate(current ->
+                        current.or(t -> t.getName() != null &&
+                                (t.getName().contains("jet.cooperative.thread-") || t.getName().contains(".partition-operation.thread-")))
+                )
+                // rules for jet cooperative threads:
                 .allowBlockingCallsInside(
                         "com.hazelcast.jet.impl.execution.TaskletExecutionService$CooperativeWorker", "doIdle")
                 .allowBlockingCallsInside("java.lang.ThreadGroup", "uncaughtException")
                 .allowBlockingCallsInside("com.hazelcast.logging.Log4j2Factory$Log4j2Logger", "log")
                 .allowBlockingCallsInside("com.hazelcast.jet.impl.execution.ProcessorTasklet", "submitToExecutor")
+
+                // rules for partition threads:
+                .allowBlockingCallsInside("com.hazelcast.spi.impl.operationexecutor.impl.OperationQueueImpl", "take")
+                .allowBlockingCallsInside("java.io.ObjectStreamClass", "lookup")
+                .allowBlockingCallsInside("com.hazelcast.internal.partition.impl.InternalPartitionServiceImpl", "firstArrangement")
         ;
     }
 }
