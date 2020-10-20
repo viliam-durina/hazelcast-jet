@@ -26,7 +26,10 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import reactor.blockhound.BlockHound;
 
+import java.util.concurrent.TimeoutException;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class JetBlockHoundTest extends SimpleTestInClusterSupport {
 
@@ -40,13 +43,15 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
     }
 
     @Test
-    public void test() throws Exception {
+    public void test() {
         Pipeline p = Pipeline.create();
         p.readFrom(TestSources.longStream(1, 0))
          .withoutTimestamps()
          .writeTo(Sinks.noop());
 
         Job job = instance().newJob(p);
-        job.getFuture().get(2, SECONDS);
+        assertThatThrownBy(() -> job.getFuture().get(2, SECONDS))
+                .isInstanceOf(TimeoutException.class);
+
     }
 }
