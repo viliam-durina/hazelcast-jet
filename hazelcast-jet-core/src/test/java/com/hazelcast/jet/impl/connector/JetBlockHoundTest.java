@@ -16,6 +16,7 @@
 
 package com.hazelcast.jet.impl.connector;
 
+import com.google.common.collect.Lists;
 import com.hazelcast.jet.Job;
 import com.hazelcast.jet.SimpleTestInClusterSupport;
 import com.hazelcast.jet.impl.JetBlockHoundIntegration;
@@ -28,6 +29,7 @@ import reactor.blockhound.BlockHound;
 
 import java.util.concurrent.TimeoutException;
 
+import static com.hazelcast.jet.pipeline.test.AssertionSinks.assertCollectedEventually;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -48,6 +50,21 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
         p.readFrom(TestSources.longStream(1, 0))
          .withoutTimestamps()
          .writeTo(Sinks.noop());
+
+        Job job = instance().newJob(p);
+        assertThatThrownBy(() -> job.getFuture().get(2, SECONDS))
+                .isInstanceOf(TimeoutException.class);
+
+    }
+
+    @Test
+    public void testAssertionsP() {
+        Pipeline p = Pipeline.create();
+        p.readFrom(TestSources.longStream(1, 0))
+         .withoutTimestamps()
+         .writeTo(assertCollectedEventually(2, c -> {
+             assertContainsAll(c, Lists.newArrayList(1L, 0L));
+         }));
 
         Job job = instance().newJob(p);
         assertThatThrownBy(() -> job.getFuture().get(2, SECONDS))
