@@ -34,6 +34,8 @@ import org.junit.Test;
 import reactor.blockhound.BlockHound;
 
 import javax.annotation.Nonnull;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -93,7 +95,6 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
 
     @Test
     public void test_assertionSink() {
-        Pipeline p = Pipeline.create();
         p.readFrom(TestSources.longStream(1, 0))
          .withoutTimestamps()
          .writeTo(assertCollectedEventually(2, items -> {
@@ -112,7 +113,6 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
         observable.addObserver(new CollectingObserver());
 
         try {
-            Pipeline p = Pipeline.create();
             p.readFrom(TestSources.items(1L, 0L))
              .writeTo(Sinks.observable(observableName));
 
@@ -125,6 +125,15 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
         } finally {
             observable.destroy();
         }
+    }
+
+    @Test
+    public void test_writeFiles() throws IOException {
+        File tmpDir = createTempDirectory();
+        p.readFrom(TestSources.items(1, 2, 3, 4))
+         .writeTo(Sinks.files(tmpDir.toString()));
+
+        instance().newJob(p).join();
     }
 
     private static final class CollectingObserver implements Observer<Long> {
