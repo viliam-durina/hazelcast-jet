@@ -51,14 +51,11 @@ public class BlockHoundTest {
     @Test
     public void test_detectingWaitingForAMonitor() throws TimeoutException, InterruptedException {
         try {
-            System.out.println("here0");
             Object monitor = new Object();
 
             FutureTask<?> task = new FutureTask<>(() -> {
-                System.out.println("here1");
                 try {
                     synchronized (monitor) {
-                        System.out.println("here2");
                         return "";
                     }
                 } catch (Throwable e) {
@@ -66,9 +63,7 @@ public class BlockHoundTest {
                     throw e;
                 }
             });
-            System.out.println("here3");
             synchronized (monitor) {
-                System.out.println("here4");
                 Executors.newSingleThreadExecutor(new ThreadFactory() {
                     private final AtomicInteger count = new AtomicInteger();
 
@@ -77,7 +72,7 @@ public class BlockHoundTest {
                         return new Thread(r, "my-pool-" + count.getAndIncrement());
                     }
                 }).execute(task);
-                Thread.sleep(4000);
+                Thread.sleep(1000);
             }
 
             task.get(10, TimeUnit.SECONDS);
