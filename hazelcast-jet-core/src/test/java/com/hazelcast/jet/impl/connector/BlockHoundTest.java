@@ -147,6 +147,30 @@ public class BlockHoundTest {
     }
 
     @Test
+    public void test_nonContendedChmPut_contentedGet() throws Exception {
+        ConcurrentMap<Integer, Integer> map = new ConcurrentHashMap<>();
+        Runnable taskPut = () -> {
+            for (int i = 0; i < 1_000_000; i++) {
+                map.put(i, i);
+            }
+        };
+        Runnable taskGet = () -> {
+            for (int i = 0; i < 1_000_000; i++) {
+                map.get(i);
+            }
+        };
+        List<Thread> threads = new ArrayList<>();
+        threads.add(new Thread(taskPut, "my-pool-put"));
+        for (int i = 0; i < 4; i++) {
+            threads.add(new Thread(taskGet, "my-pool-get-" + i));
+        }
+        threads.forEach(Thread::start);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+    }
+
+    @Test
     public void test_contendedChmGet() throws Exception {
         ConcurrentMap<Integer, Integer> map = new ConcurrentHashMap<>();
         for (int i = 0; i < 1_000_000; i++) {
