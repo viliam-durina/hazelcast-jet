@@ -18,8 +18,10 @@ package com.hazelcast.jet.impl.connector;
 
 import com.google.common.collect.Lists;
 import com.hazelcast.jet.Job;
+import com.hazelcast.jet.Observable;
 import com.hazelcast.jet.SimpleTestInClusterSupport;
 import com.hazelcast.jet.config.JetConfig;
+import com.hazelcast.jet.function.Observer;
 import com.hazelcast.jet.impl.JetBlockHoundIntegration;
 import com.hazelcast.jet.pipeline.JournalInitialPosition;
 import com.hazelcast.jet.pipeline.Pipeline;
@@ -31,6 +33,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import reactor.blockhound.BlockHound;
 
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import static com.hazelcast.jet.core.JobStatus.RUNNING;
@@ -85,17 +92,56 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
     }
 
     @Test
-    public void testAssertionsP() {
+    public void test_assertionSink() {
         Pipeline p = Pipeline.create();
         p.readFrom(TestSources.longStream(1, 0))
          .withoutTimestamps()
-         .writeTo(assertCollectedEventually(2, c -> {
-             assertContainsAll(c, Lists.newArrayList(1L, 0L));
+         .writeTo(assertCollectedEventually(2, items -> {
+             assertContainsAll(items, Arrays.asList(0L, 1L));
          }));
 
         Job job = instance().newJob(p);
         assertThatThrownBy(() -> job.getFuture().get(2, SECONDS))
                 .isInstanceOf(TimeoutException.class);
+    }
 
+    @Test
+    public void test_observableSink() {
+        String observableName = "my-observable";
+        Observable<Long> observable = instance().getObservable(observableName);
+        observable.addObserver(new CollectingObserver());
+
+        try {
+            Pipeline p = Pipeline.create();
+            p.readFrom(TestSources.items(1L, 0L))
+             .writeTo(Sinks.observable(observableName));
+
+            instance().newJob(p).join();
+            List<Long> items = new ArrayList<>();
+            for (Long item : observable) {
+                items.add(item);
+            }
+            assertContainsAll(items, Lists.newArrayList(0L, 1L));
+        } finally {
+            observable.destroy();
+        }
+    }
+
+    private static final class CollectingObserver implements Observer<Long> {
+
+        private final List<Long> values = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        public void onNext(@Nonnull Long value) {
+            values.add(value);
+        }
+
+        @Override
+        public void onError(@Nonnull Throwable throwable) {
+        }
+
+        @Override
+        public void onComplete() {
+        }
     }
 }
