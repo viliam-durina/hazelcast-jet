@@ -1,5 +1,7 @@
 package com.hazelcast.jet.impl.connector;
 
+import com.hazelcast.logging.ILogger;
+import com.hazelcast.logging.Logger;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -8,6 +10,8 @@ import reactor.blockhound.BlockingOperationError;
 import reactor.blockhound.integration.BlockHoundIntegration;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
@@ -19,6 +23,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class BlockHoundTest {
+
+    public static final ThreadFactory THREAD_FACTORY = new ThreadFactory() {
+        private final AtomicInteger count = new AtomicInteger();
+
+        @Override
+        public Thread newThread(@Nonnull Runnable r) {
+            return new Thread(r, "my-pool-" + count.getAndIncrement());
+        }
+    };
 
     @BeforeClass
     public static void setUpClass() {
@@ -34,14 +47,7 @@ public class BlockHoundTest {
                 Thread.sleep(0);
                 return "";
             });
-            Executors.newSingleThreadExecutor(new ThreadFactory() {
-                private final AtomicInteger count = new AtomicInteger();
-
-                @Override
-                public Thread newThread(@Nonnull Runnable r) {
-                    return new Thread(r, "my-pool-" + count.getAndIncrement());
-                }
-            }).execute(task);
+            Executors.newSingleThreadExecutor(THREAD_FACTORY).execute(task);
 
             task.get(10, SECONDS);
             Assert.fail("should fail");
@@ -58,14 +64,7 @@ public class BlockHoundTest {
                 s.tryAcquire(1, SECONDS);
                 return "";
             });
-            Executors.newSingleThreadExecutor(new ThreadFactory() {
-                private final AtomicInteger count = new AtomicInteger();
-
-                @Override
-                public Thread newThread(@Nonnull Runnable r) {
-                    return new Thread(r, "my-pool-" + count.getAndIncrement());
-                }
-            }).execute(task);
+            Executors.newSingleThreadExecutor(THREAD_FACTORY).execute(task);
 
             task.get(10, SECONDS);
             Assert.fail("should fail");
@@ -91,14 +90,7 @@ public class BlockHoundTest {
                 }
             });
             synchronized (monitor) {
-                Executors.newSingleThreadExecutor(new ThreadFactory() {
-                    private final AtomicInteger count = new AtomicInteger();
-
-                    @Override
-                    public Thread newThread(@Nonnull Runnable r) {
-                        return new Thread(r, "my-pool-" + count.getAndIncrement());
-                    }
-                }).execute(task);
+                Executors.newSingleThreadExecutor(THREAD_FACTORY).execute(task);
                 Thread.sleep(1000);
             }
 
@@ -106,6 +98,25 @@ public class BlockHoundTest {
             Assert.fail("should fail");
         } catch (ExecutionException e) {
             Assert.assertTrue("detected", e.getCause() instanceof BlockingOperationError);
+        }
+    }
+
+    @Test
+    public void test_contendedLogToDisabledLogger() throws Exception {
+        ILogger logger = Logger.getLogger(BlockHoundTest.class);
+
+        Runnable task = () -> {
+            for (int i = 0; i < 1_000_000; i++) {
+                logger.finest("foo");
+            }
+        };
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            threads.add(new Thread(task, "my-pool-" + i));
+        }
+        threads.forEach(Thread::start);
+        for (Thread thread : threads) {
+            thread.join();
         }
     }
 
