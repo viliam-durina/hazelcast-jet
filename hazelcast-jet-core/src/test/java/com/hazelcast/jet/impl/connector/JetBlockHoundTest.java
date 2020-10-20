@@ -29,6 +29,7 @@ import com.hazelcast.jet.pipeline.Pipeline;
 import com.hazelcast.jet.pipeline.Sinks;
 import com.hazelcast.jet.pipeline.Sources;
 import com.hazelcast.jet.pipeline.test.TestSources;
+import com.hazelcast.map.EntryProcessor;
 import com.hazelcast.map.IMap;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.IntStream;
 
@@ -159,6 +161,33 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
         instance().newJob(p).join();
     }
 
+    @Test
+    public void test_mapWithUpdating() {
+        p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
+         .writeTo(Sinks.<Integer, Integer, Integer>mapWithUpdating(randomName(), i -> i % 100,
+                 (v, item) -> v == null ? 1 : v + 1));
+
+        instance().newJob(p).join();
+    }
+
+    @Test
+    public void test_mapWithEntryProcessor() {
+        p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
+         .writeTo(Sinks.mapWithEntryProcessor(randomName(), i -> i % 100,
+                 (item) -> new IncrementByOneEntryProcessor()));
+
+        instance().newJob(p).join();
+    }
+
+    @Test
+    public void test_distributedEdge() {
+        p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
+         .rebalance()
+         .writeTo(Sinks.noop());
+
+        instance().newJob(p).join();
+    }
+
     private static final class CollectingObserver implements Observer<Long> {
 
         private final List<Long> values = Collections.synchronizedList(new ArrayList<>());
@@ -174,6 +203,15 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
 
         @Override
         public void onComplete() {
+        }
+    }
+
+    private static class IncrementByOneEntryProcessor implements EntryProcessor<Integer, Integer, Void> {
+        @Override
+        public Void process(Entry<Integer, Integer> entry) {
+            int newValue = entry.getValue() == null ? 1 : entry.getValue() + 1;
+            entry.setValue(newValue);
+            return null;
         }
     }
 }
