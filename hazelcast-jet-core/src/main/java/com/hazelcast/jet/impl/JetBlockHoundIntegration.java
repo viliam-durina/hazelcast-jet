@@ -29,6 +29,7 @@ public class JetBlockHoundIntegration implements BlockHoundIntegration {
                         "com.hazelcast.jet.impl.execution.TaskletExecutionService$CooperativeWorker", "doIdle")
                 .allowBlockingCallsInside("java.lang.ThreadGroup", "uncaughtException")
                 .allowBlockingCallsInside("com.hazelcast.logging.Log4j2Factory$Log4j2Logger", "log")
+                .allowBlockingCallsInside("com.hazelcast.jet.impl.execution.ProcessorTasklet", "submitToExecutor")
         ;
     }
 }

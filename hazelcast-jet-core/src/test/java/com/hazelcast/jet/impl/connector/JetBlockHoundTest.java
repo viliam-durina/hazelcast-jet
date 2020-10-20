@@ -20,6 +20,7 @@ import com.google.common.collect.Lists;
 import com.hazelcast.jet.Job;
 import com.hazelcast.jet.Observable;
 import com.hazelcast.jet.SimpleTestInClusterSupport;
+import com.hazelcast.jet.Util;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.function.Observer;
 import com.hazelcast.jet.impl.JetBlockHoundIntegration;
@@ -41,10 +42,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.IntStream;
 
 import static com.hazelcast.jet.core.JobStatus.RUNNING;
 import static com.hazelcast.jet.pipeline.test.AssertionSinks.assertCollectedEventually;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class JetBlockHoundTest extends SimpleTestInClusterSupport {
@@ -132,6 +136,25 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
         File tmpDir = createTempDirectory();
         p.readFrom(TestSources.items(1, 2, 3, 4))
          .writeTo(Sinks.files(tmpDir.toString()));
+
+        instance().newJob(p).join();
+    }
+
+    @Test
+    public void test_readMapP() {
+        String mapName = randomName();
+        instance().getMap(mapName).putAll(IntStream.range(0, 10_000).boxed().collect(toMap(i -> i, i -> i)));
+        p.readFrom(Sources.map(mapName))
+         .writeTo(Sinks.noop());
+
+        instance().newJob(p).join();
+    }
+
+    @Test
+    public void test_writeMapP() {
+        p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
+         .map(i -> Util.entry(i, i))
+         .writeTo(Sinks.map(randomName()));
 
         instance().newJob(p).join();
     }

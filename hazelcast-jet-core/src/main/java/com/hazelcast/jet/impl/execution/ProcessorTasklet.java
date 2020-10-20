@@ -379,7 +379,7 @@ public class ProcessorTasklet implements Tasklet {
             case CLOSE:
                 if (isCooperative()) {
                     if (closeFuture == null) {
-                        closeFuture = executionService.submit(this::closeProcessor);
+                        submitToExecutor(this::closeProcessor);
                         progTracker.madeProgress();
                     }
                     if (!closeFuture.isDone()) {
@@ -397,6 +397,10 @@ public class ProcessorTasklet implements Tasklet {
                 // note ProcessorState.END goes here
                 throw new JetException("Unexpected state: " + state);
         }
+    }
+
+    private void submitToExecutor(Runnable task) {
+        closeFuture = executionService.submit(task);
     }
 
     private void processInbox() {
