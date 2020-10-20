@@ -26,6 +26,10 @@ public class JetBlockHoundIntegration implements BlockHoundIntegration {
                 .nonBlockingThreadPredicate(current -> current.or(
                         t -> t.getName() != null && t.getName().contains("jet.cooperative.thread-")))
                 .allowBlockingCallsInside(
-                        "com.hazelcast.jet.impl.execution.TaskletExecutionService.CooperativeWorker", "doIdle");
+                        "com.hazelcast.jet.impl.execution.TaskletExecutionService.CooperativeWorker", "doIdle")
+        .blockingMethodCallback(m -> {
+            new Exception(m.toString()).printStackTrace();
+        })
+        ;
     }
 }
