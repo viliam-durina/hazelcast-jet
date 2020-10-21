@@ -33,10 +33,10 @@ public class JetBlockHoundIntegration implements BlockHoundIntegration {
                 .allowBlockingCallsInside("java.lang.ThreadGroup", "uncaughtException")
                 .allowBlockingCallsInside("com.hazelcast.logging.Log4j2Factory$Log4j2Logger", "log")
                 .allowBlockingCallsInside("com.hazelcast.jet.impl.execution.ProcessorTasklet", "submitToExecutor")
+                .allowBlockingCallsInside("java.io.ObjectStreamClass", "lookup")
 
                 // rules for partition threads:
                 .allowBlockingCallsInside("com.hazelcast.spi.impl.operationexecutor.impl.OperationQueueImpl", "take")
-                .allowBlockingCallsInside("java.io.ObjectStreamClass", "lookup")
                 .allowBlockingCallsInside("com.hazelcast.internal.partition.impl.InternalPartitionServiceImpl", "firstArrangement")
         ;
     }
