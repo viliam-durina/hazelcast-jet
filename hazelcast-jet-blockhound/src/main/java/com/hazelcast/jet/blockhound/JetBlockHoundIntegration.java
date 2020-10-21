@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.impl;
+package com.hazelcast.jet.blockhound;
 
 import reactor.blockhound.BlockHound.Builder;
 import reactor.blockhound.integration.BlockHoundIntegration;

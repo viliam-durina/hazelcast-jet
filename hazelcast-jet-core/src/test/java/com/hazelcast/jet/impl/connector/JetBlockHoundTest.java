@@ -28,7 +28,6 @@ import com.hazelcast.jet.config.JetClientConfig;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.function.Observer;
-import com.hazelcast.jet.impl.JetBlockHoundIntegration;
 import com.hazelcast.jet.pipeline.JournalInitialPosition;
 import com.hazelcast.jet.pipeline.Pipeline;
 import com.hazelcast.jet.pipeline.Sinks;
@@ -77,9 +76,7 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
 
     @BeforeClass
     public static void setUpClass() {
-        BlockHound.builder()
-                  .with(new JetBlockHoundIntegration())
-                  .install();
+        BlockHound.install();
 
         JetConfig config = new JetConfig();
         config.getHazelcastConfig().getMapConfig("journaled-*").getEventJournalConfig().setEnabled(true);
@@ -237,10 +234,10 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
     private void test_mapWithUpdating(boolean remote) {
         p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
          .writeTo(remote
-                ? Sinks.<Integer, Integer, Integer>remoteMapWithUpdating(randomName(), clientConfig, i -> i % 100,
-                    (v, item) -> v == null ? 1 : v + 1)
-                : Sinks.<Integer, Integer, Integer>mapWithUpdating(randomName(), i -> i % 100,
-                    (v, item) -> v == null ? 1 : v + 1));
+                 ? Sinks.<Integer, Integer, Integer>remoteMapWithUpdating(randomName(), clientConfig, i -> i % 100,
+                 (v, item) -> v == null ? 1 : v + 1)
+                 : Sinks.<Integer, Integer, Integer>mapWithUpdating(randomName(), i -> i % 100,
+                 (v, item) -> v == null ? 1 : v + 1));
 
         instance().newJob(p).join();
     }
@@ -258,10 +255,10 @@ public class JetBlockHoundTest extends SimpleTestInClusterSupport {
     private void test_mapWithEntryProcessor(boolean remote) {
         p.readFrom(TestSources.items(IntStream.range(0, 10_000).boxed().collect(toList())))
          .writeTo(remote
-                ? Sinks.remoteMapWithEntryProcessor(randomName(), clientConfig, i -> i % 100,
-                    (item) -> new IncrementByOneEntryProcessor())
+                 ? Sinks.remoteMapWithEntryProcessor(randomName(), clientConfig, i -> i % 100,
+                 (item) -> new IncrementByOneEntryProcessor())
                  : Sinks.mapWithEntryProcessor(randomName(), i -> i % 100,
-                    (item) -> new IncrementByOneEntryProcessor()));
+                 (item) -> new IncrementByOneEntryProcessor()));
 
         instance().newJob(p).join();
     }

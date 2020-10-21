@@ -201,16 +201,17 @@
         </dependency>
 
         <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-stdlib</artifactId>
-            <version>${kotlin.version}</version>
+            <groupId>com.hazelcast.jet</groupId>
+            <artifactId>hazelcast-jet-blockhound</artifactId>
+            <version>${project.parent.version}</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>io.projectreactor.tools</groupId>
-            <artifactId>blockhound</artifactId>
-            <version>1.0.4.RELEASE</version>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
+            <version>${kotlin.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>
