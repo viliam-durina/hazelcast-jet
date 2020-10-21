@@ -16,9 +16,13 @@
 
 package com.hazelcast.jet.impl.execution;
 
+import com.hazelcast.internal.metrics.DynamicMetricsProvider;
 import com.hazelcast.internal.metrics.MetricDescriptor;
+import com.hazelcast.internal.metrics.MetricsCollectionContext;
 import com.hazelcast.internal.metrics.MetricsRegistry;
 import com.hazelcast.internal.metrics.Probe;
+import com.hazelcast.internal.metrics.ProbeLevel;
+import com.hazelcast.internal.metrics.ProbeUnit;
 import com.hazelcast.internal.util.concurrent.BackoffIdleStrategy;
 import com.hazelcast.internal.util.concurrent.IdleStrategy;
 import com.hazelcast.internal.util.counters.Counter;
@@ -82,6 +86,7 @@ public class TaskletExecutionService {
     private final Thread[] cooperativeThreadPool;
     private final String hzInstanceName;
     private final ILogger logger;
+    private final MetricsRegistry registry;
     private int cooperativeThreadIndex;
     @Probe(name = "blockingWorkerCount")
     private final Counter blockingWorkerCount = MwCounter.newMwCounter();
@@ -112,7 +117,7 @@ public class TaskletExecutionService {
         Arrays.stream(cooperativeThreadPool).forEach(Thread::start);
 
         // register metrics
-        MetricsRegistry registry = nodeEngine.getMetricsRegistry();
+        registry = nodeEngine.getMetricsRegistry();
         MetricDescriptor descriptor = registry.newMetricDescriptor()
                                                      .withTag(MetricTags.MODULE, "jet");
         registry.registerStaticMetrics(descriptor, this);
@@ -265,9 +270,12 @@ public class TaskletExecutionService {
         );
     }
 
-    private final class BlockingWorker implements Runnable {
+    private final class BlockingWorker implements Runnable, DynamicMetricsProvider {
         private final TaskletTracker tracker;
         private final CountDownLatch startedLatch;
+
+        @Probe(name = "iterationCount")
+        private final Counter iterationCount = SwCounter.newSwCounter();
 
         private BlockingWorker(TaskletTracker tracker, CountDownLatch startedLatch) {
             this.tracker = tracker;
@@ -281,6 +289,7 @@ public class TaskletExecutionService {
             currentThread().setContextClassLoader(tracker.jobClassLoader);
             IdleStrategy idlerLocal = idlerNonCooperative;
             MetricsImpl.Container userMetricsContextContainer = MetricsImpl.container();
+            registry.registerDynamicMetricsProvider(this);
 
             try {
                 blockingWorkerCount.inc();
@@ -291,6 +300,7 @@ public class TaskletExecutionService {
                 ProgressState result;
                 do {
                     result = t.call();
+                    iterationCount.inc();
                     if (result.isMadeProgress()) {
                         idleCount = 0;
                     } else {
@@ -303,10 +313,23 @@ public class TaskletExecutionService {
                 logger.warning("Exception in " + t, e);
                 tracker.executionTracker.exception(new JetException("Exception in " + t + ": " + e, e));
             } finally {
-                blockingWorkerCount.inc(-1L);
+                registry.deregisterDynamicMetricsProvider(this);
                 userMetricsContextContainer.setContext(null);
                 currentThread().setContextClassLoader(clBackup);
                 tracker.executionTracker.taskletDone();
+            }
+        }
+
+        @Override
+        public void provideDynamicMetrics(MetricDescriptor descriptor, MetricsCollectionContext context) {
+            try {
+                descriptor
+                        .withTag(MetricTags.MODULE, "jet")
+                        .withTag("blockingWorker", tracker.tasklet.toString());
+                context.collect(descriptor, "iterationCount", ProbeLevel.INFO, ProbeUnit.MS, iterationCount.get());
+            } catch (Throwable t) {
+                logger.warning("Dynamic metric collection failed", t);
+                throw t;
             }
         }
     }
