@@ -50,9 +50,13 @@ public final class LogicalRules {
                 // Scan rules
                 FullScanLogicalRule.INSTANCE,
                 FullFunctionScanLogicalRule.INSTANCE,
+                WindowFunctionScanLogicalRule.INSTANCE,
 
                 // Aggregate rules
                 AggregateLogicalRule.INSTANCE,
+
+                // Window aggregate rules
+                WindowAggregationLogicalRule.INSTANCE,
 
                 // Value rules
                 ValuesLogicalRule.INSTANCE,

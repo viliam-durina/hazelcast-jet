@@ -17,26 +17,27 @@
 package com.hazelcast.jet.sql.impl.opt.logical;
 
 import com.hazelcast.jet.sql.impl.opt.OptUtils;
-import com.hazelcast.jet.sql.impl.schema.JetTableFunction;
-import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.ConverterRule;
 import org.apache.calcite.rel.logical.LogicalTableFunctionScan;
 import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.sql.validate.SqlUserDefinedTableFunction;
+import org.apache.calcite.sql.SqlHopTableFunction;
+import org.apache.calcite.sql.SqlTumbleTableFunction;
+import org.apache.calcite.sql.SqlWindowTableFunction;
 
 import static com.hazelcast.jet.sql.impl.opt.JetConventions.LOGICAL;
 
-final class FullFunctionScanLogicalRule extends ConverterRule {
+final class WindowFunctionScanLogicalRule extends ConverterRule {
 
-    static final RelOptRule INSTANCE = new FullFunctionScanLogicalRule();
+    static final RelOptRule INSTANCE = new WindowFunctionScanLogicalRule();
 
-    private FullFunctionScanLogicalRule() {
+    private WindowFunctionScanLogicalRule() {
         super(
-                LogicalTableFunctionScan.class, scan -> extractFunction(scan) != null, Convention.NONE, LOGICAL,
-                FullFunctionScanLogicalRule.class.getSimpleName()
+                LogicalTableFunctionScan.class, scan -> extractFunction(scan) != null,
+                Convention.NONE, LOGICAL,
+                WindowFunctionScanLogicalRule.class.getSimpleName()
         );
     }
 
@@ -44,28 +45,26 @@ final class FullFunctionScanLogicalRule extends ConverterRule {
     public RelNode convert(RelNode rel) {
         LogicalTableFunctionScan scan = (LogicalTableFunctionScan) rel;
 
-        return OptUtils.createLogicalScan(scan.getCluster(), extractTable(scan));
+        return new WindowFunctionScanLogicalRel(
+                scan.getCluster(),
+                OptUtils.toLogicalConvention(scan.getTraitSet()),
+                OptUtils.toLogicalInputs(scan.getInputs()),
+                scan.getCall(),
+                scan.getElementType(),
+                scan.getRowType(),
+                scan.getColumnMappings()
+        );
     }
 
-    private static HazelcastTable extractTable(LogicalTableFunctionScan scan) {
-        JetTableFunction function = extractFunction(scan);
-        return function.toTable(scan.getRowType());
-    }
-
-    private static JetTableFunction extractFunction(LogicalTableFunctionScan scan) {
+    private static SqlWindowTableFunction extractFunction(LogicalTableFunctionScan scan) {
         if (scan == null || !(scan.getCall() instanceof RexCall)) {
             return null;
         }
         RexCall call = (RexCall) scan.getCall();
 
-        if (!(call.getOperator() instanceof SqlUserDefinedTableFunction)) {
+        if (!(call.getOperator() instanceof SqlTumbleTableFunction || call.getOperator() instanceof SqlHopTableFunction)) {
             return null;
         }
-        SqlUserDefinedTableFunction operator = (SqlUserDefinedTableFunction) call.getOperator();
-
-        if (!(operator.getFunction() instanceof JetTableFunction)) {
-            return null;
-        }
-        return (JetTableFunction) operator.getFunction();
+        return (SqlWindowTableFunction) call.getOperator();
     }
 }

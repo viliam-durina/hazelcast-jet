@@ -90,6 +90,20 @@ public final class OptUtils {
     }
 
     /**
+     * Convert the given inputs into logical inputs.
+     *
+     * @param rels Original inputs.
+     * @return Logical inputs.
+     */
+    public static List<RelNode> toLogicalInputs(List<RelNode> rels) {
+        List<RelNode> res = new ArrayList<>();
+        for (RelNode rel : rels) {
+            res.add(RelOptRule.convert(rel, toLogicalConvention(rel.getTraitSet())));
+        }
+        return res;
+    }
+
+    /**
      * Convert the given trait set to physical convention.
      *
      * @param traitSet Original trait set.

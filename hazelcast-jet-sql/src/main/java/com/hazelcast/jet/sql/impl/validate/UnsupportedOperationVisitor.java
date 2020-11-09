@@ -135,6 +135,9 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         SUPPORTED_KINDS.add(SqlKind.COLLECTION_TABLE);
         SUPPORTED_KINDS.add(SqlKind.ARGUMENT_ASSIGNMENT);
 
+        // For window functions
+        SUPPORTED_KINDS.add(SqlKind.DESCRIPTOR);
+
         // Supported operators
         SUPPORTED_OPERATORS = new HashSet<>();
 
@@ -178,6 +181,10 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         SUPPORTED_OPERATORS.add(JetSqlOperatorTable.JSON_FILE);
         SUPPORTED_OPERATORS.add(JetSqlOperatorTable.AVRO_FILE);
         SUPPORTED_OPERATORS.add(JetSqlOperatorTable.PARQUET_FILE);
+
+        // Window Functions
+        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.TUMBLE);
+        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.HOP);
     }
 
     private UnsupportedOperationVisitor() {
@@ -272,6 +279,7 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
                 // of string literals is still VARCHAR in HazelcastSqlValidator.
             case CHAR:
             case ANY:
+            case INTERVAL_SECOND:
             case NULL:
                 return null;
 
