@@ -17,7 +17,6 @@
 package com.hazelcast.jet.sql.impl.opt.logical;
 
 import com.google.common.collect.ImmutableList;
-import com.hazelcast.jet.datamodel.Tuple2;
 import com.hazelcast.jet.sql.impl.opt.OptUtils;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -41,7 +40,6 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.ImmutableBitSet.Builder;
 import org.apache.calcite.util.mapping.Mappings;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.List;
@@ -131,28 +129,6 @@ final class WindowAggregationLogicalRule extends RelOptRule {
             aggCalls.add(aggregateCall.transform(targetMapping));
         }
 
-        //        List<AggregateCall> newAggrCallList = new ArrayList<>(aggr.getAggCallList().size());
-//        // remove projects that are references to window boundary and are only used for grouping
-//        List<Integer> unusedProjects = new ArrayList<>();
-//        for (int i = 0; i < prj.getProjects().size(); i++) {
-//            RexNode expr = prj.getProjects().get(i);
-//            if (expr instanceof RexInputRef) {
-//                int index = ((RexInputRef) expr).getIndex();
-//                int finalI = i;
-//                if ((index == windowStartIndex || index == windowEndIndex)
-//                        && aggr.getAggCallList().stream().flatMap(a -> a.getArgList().stream()).noneMatch(i1 -> i1 == finalI)) {
-//                    unusedProjects.add(i);
-//                }
-//            }
-//        }
-//
-//        // update the aggr to reflect removed projections
-//        TargetMapping mapping = Mappings.target(i -> unusedProjects.indexOf(i), prj.getProjects().size(), prj.getProjects().size() - unusedProjects.size());
-//        for (AggregateCall aggrCall : aggr.getAggCallList()) {
-//            newAggrCallList.add(aggrCall.transform(mapping));
-//        }
-//        return newAggrCallList;
-
         List<RexNode> newProjects = Mappings.permute(prj.getProjects(), targetMapping.inverse());
         List<String> newProjectsNames = Mappings.permute(prj.getRowType().getFieldNames(), targetMapping.inverse());
         LogicalProject newProjectRel = LogicalProject.create(
@@ -169,6 +145,7 @@ final class WindowAggregationLogicalRule extends RelOptRule {
                 newGroupSet,
                 null,
                 aggCalls.build(),
+                timeColumn,
                 prj.getProjects(),
                 windowSize,
                 windowSlide));
@@ -218,72 +195,6 @@ final class WindowAggregationLogicalRule extends RelOptRule {
             return null;
         }
         return newGroupSet.build();
-    }
-
-    /**
-     * @return a tuple of {aggrCalls, groupSet} for the new aggregation
-     */
-    @Nonnull
-    private Tuple2<List<AggregateCall>, ImmutableBitSet> updateAggregateCalls(
-            LogicalAggregate aggr,
-            ImmutableBitSet newGroupSet,
-            LogicalProject prj
-    ) {
-        final SortedSet<Integer> interestingFields =
-                (SortedSet<Integer>) RelOptUtil.getAllFields2(newGroupSet, aggr.getAggCallList());
-        final Map<Integer, Integer> map = new HashMap<>();
-        int i = 0;
-        for (int source : interestingFields) {
-            map.put(source, i++);
-        }
-
-        newGroupSet = newGroupSet.permute(map);
-
-        final ImmutableList.Builder<AggregateCall> aggCalls = ImmutableList.builder();
-        final int sourceCount = aggr.getInput().getRowType().getFieldCount();
-        final int targetCount = prj.getProjects().size();
-        final Mappings.TargetMapping targetMapping =
-                Mappings.target(map, sourceCount, targetCount);
-        for (AggregateCall aggregateCall : aggr.getAggCallList()) {
-            aggCalls.add(aggregateCall.transform(targetMapping));
-        }
-
-        return Tuple2.tuple2(aggCalls.build(), newGroupSet);
-
-//        List<AggregateCall> newAggrCallList = new ArrayList<>(aggr.getAggCallList().size());
-//        // remove projects that are references to window boundary and are only used for grouping
-//        List<Integer> unusedProjects = new ArrayList<>();
-//        for (int i = 0; i < prj.getProjects().size(); i++) {
-//            RexNode expr = prj.getProjects().get(i);
-//            if (expr instanceof RexInputRef) {
-//                int index = ((RexInputRef) expr).getIndex();
-//                int finalI = i;
-//                if ((index == windowStartIndex || index == windowEndIndex)
-//                        && aggr.getAggCallList().stream().flatMap(a -> a.getArgList().stream()).noneMatch(i1 -> i1 == finalI)) {
-//                    unusedProjects.add(i);
-//                }
-//            }
-//        }
-//
-//        // update the aggr to reflect removed projections
-//        TargetMapping mapping = Mappings.target(i -> unusedProjects.indexOf(i), prj.getProjects().size(), prj.getProjects().size() - unusedProjects.size());
-//        for (AggregateCall aggrCall : aggr.getAggCallList()) {
-//            newAggrCallList.add(aggrCall.transform(mapping));
-//        }
-//        return newAggrCallList;
-    }
-
-    private static boolean isGroupedBy(int fieldIndex, LogicalProject prj, LogicalAggregate aggr) {
-        // find the fieldIndex after projection
-        for (int i = 0; i < prj.getProjects().size(); i++) {
-            RexNode project = prj.getProjects().get(i);
-            if (project instanceof RexInputRef && ((RexInputRef) project).getIndex() == fieldIndex) {
-                if (aggr.getGroupSet().get(i)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /*

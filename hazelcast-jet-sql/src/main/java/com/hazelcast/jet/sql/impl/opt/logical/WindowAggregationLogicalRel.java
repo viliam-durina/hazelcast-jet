@@ -29,6 +29,7 @@ import java.util.List;
 
 public class WindowAggregationLogicalRel extends Aggregate implements LogicalRel {
 
+    private final int timeColumn;
     private final List<RexNode> projects;
     private final RexNode windowSize;
     private final RexNode windowSlide;
@@ -41,11 +42,13 @@ public class WindowAggregationLogicalRel extends Aggregate implements LogicalRel
             ImmutableBitSet groupSet,
             List<ImmutableBitSet> groupSets,
             List<AggregateCall> aggCalls,
+            int timeColumn,
             List<RexNode> projects,
             RexNode windowSize,
             RexNode windowSlide
     ) {
         super(cluster, traitSet, hints, input, groupSet, groupSets, aggCalls);
+        this.timeColumn = timeColumn;
 
         this.projects = projects;
         this.windowSize = windowSize;
@@ -62,6 +65,10 @@ public class WindowAggregationLogicalRel extends Aggregate implements LogicalRel
     ) {
         throw new UnsupportedOperationException();
         //return new WindowAggregationLogicalRel(getCluster(), traitSet, getHints(), input, groupSet, groupSets, aggCalls, prj.getProjects(), windowSize, windowSlide);
+    }
+
+    public int getTimeColumn() {
+        return timeColumn;
     }
 
     public List<RexNode> getProjects() {
