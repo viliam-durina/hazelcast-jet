@@ -43,9 +43,33 @@ public class SqlWindowAggregateTest extends SqlTestSupport {
     }
 
     @Test
-    public void test_grouping() {
+    public void test_groupingByBoundaryOnly() {
         sqlService.execute(javaSerializableMapDdl("m", String.class, OffsetDateTime.class));
         sqlService.execute("SELECT window_start, count(__key) " +
+                "FROM TABLE(TUMBLE(TABLE m, DESCRIPTOR(this), interval '5' seconds)) " +
+                "GROUP BY window_start");
+    }
+
+    @Test
+    public void test_groupingByBoundaryAndField() {
+        sqlService.execute(javaSerializableMapDdl("m", String.class, OffsetDateTime.class));
+        sqlService.execute("SELECT window_start, this, count(__key) " +
+                "FROM TABLE(TUMBLE(TABLE m, DESCRIPTOR(this), interval '5' seconds)) " +
+                "GROUP BY window_start, this");
+    }
+
+    @Test
+    public void test_groupingFieldOnly() {
+        sqlService.execute(javaSerializableMapDdl("m", String.class, OffsetDateTime.class));
+        sqlService.execute("SELECT this, count(__key) " +
+                "FROM TABLE(TUMBLE(TABLE m, DESCRIPTOR(this), interval '5' seconds)) " +
+                "GROUP BY this");
+    }
+
+    @Test
+    public void test_noWindowBoundarySelected() {
+        sqlService.execute(javaSerializableMapDdl("m", String.class, OffsetDateTime.class));
+        sqlService.execute("SELECT count(__key) " +
                 "FROM TABLE(TUMBLE(TABLE m, DESCRIPTOR(this), interval '5' seconds)) " +
                 "GROUP BY window_start");
     }
@@ -139,7 +163,19 @@ public class SqlWindowAggregateTest extends SqlTestSupport {
         sqlService.execute(javaSerializableMapDdl("m", String.class, OffsetDateTime.class));
         // this could in theory work because we add a constant, but we don't support it
         sqlService.execute("SELECT window_start, COUNT(window_end), SUM(this) " +
-                "FROM TABLE(TUMBLE(TABLE m, DESCRIPTOR(__key), INTERVAL '1' SECOND) " +
+                "FROM TABLE(TUMBLE(TABLE m, DESCRIPTOR(__key), INTERVAL '1' SECOND)) " +
                 "GROUP BY window_start + INTERVAL '1' SECOND");
+    }
+
+    @Test
+    public void test_windowAggrWithoutProject() {
+        // The rule matches "Aggr<-Project<-TableFunctionScan". However, in some cases,
+        // the Project might be missing. This test tries to produce such a case and checks
+        // that it works
+        sqlService.execute(javaSerializableMapDdl("m", String.class, OffsetDateTime.class));
+        // this could in theory work because we add a constant, but we don't support it
+        sqlService.execute("SELECT MAX(__key), COUNT(this), window_start, window_end " +
+                "FROM TABLE(TUMBLE(TABLE m, DESCRIPTOR(__key), INTERVAL '1' SECOND)) " +
+                "GROUP BY window_start, window_end");
     }
 }

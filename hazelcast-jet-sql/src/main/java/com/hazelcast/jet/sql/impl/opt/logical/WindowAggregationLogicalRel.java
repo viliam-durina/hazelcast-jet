@@ -22,11 +22,16 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.hint.RelHint;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 
 import java.util.List;
 
 public class WindowAggregationLogicalRel extends Aggregate implements LogicalRel {
+
+    private final List<RexNode> projects;
+    private final RexNode windowSize;
+    private final RexNode windowSlide;
 
     protected WindowAggregationLogicalRel(
             RelOptCluster cluster,
@@ -35,9 +40,16 @@ public class WindowAggregationLogicalRel extends Aggregate implements LogicalRel
             RelNode input,
             ImmutableBitSet groupSet,
             List<ImmutableBitSet> groupSets,
-            List<AggregateCall> aggCalls
+            List<AggregateCall> aggCalls,
+            List<RexNode> projects,
+            RexNode windowSize,
+            RexNode windowSlide
     ) {
         super(cluster, traitSet, hints, input, groupSet, groupSets, aggCalls);
+
+        this.projects = projects;
+        this.windowSize = windowSize;
+        this.windowSlide = windowSlide;
     }
 
     @Override
@@ -48,6 +60,19 @@ public class WindowAggregationLogicalRel extends Aggregate implements LogicalRel
             List<ImmutableBitSet> groupSets,
             List<AggregateCall> aggCalls
     ) {
-        return new WindowAggregationLogicalRel(getCluster(), traitSet, getHints(), input, groupSet, groupSets, aggCalls);
+        throw new UnsupportedOperationException();
+        //return new WindowAggregationLogicalRel(getCluster(), traitSet, getHints(), input, groupSet, groupSets, aggCalls, prj.getProjects(), windowSize, windowSlide);
+    }
+
+    public List<RexNode> getProjects() {
+        return projects;
+    }
+
+    public RexNode getWindowSize() {
+        return windowSize;
+    }
+
+    public RexNode getWindowSlide() {
+        return windowSlide;
     }
 }

@@ -16,11 +16,15 @@
 
 package com.hazelcast.jet.sql.impl.opt.logical;
 
+import com.google.common.collect.ImmutableList;
+import com.hazelcast.jet.datamodel.Tuple2;
 import com.hazelcast.jet.sql.impl.opt.OptUtils;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate.Group;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.RelFactories;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalProject;
@@ -34,8 +38,15 @@ import org.apache.calcite.sql.SqlDescriptorOperator;
 import org.apache.calcite.sql.SqlHopTableFunction;
 import org.apache.calcite.sql.SqlTumbleTableFunction;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.ImmutableBitSet.Builder;
+import org.apache.calcite.util.mapping.Mappings;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
 
 /**
  * A rule to convert:
@@ -95,48 +106,171 @@ final class WindowAggregationLogicalRule extends RelOptRule {
         assert windowRowType.get(windowStartIndex).getName().equals("window_start");
         assert windowRowType.get(windowEndIndex).getName().equals("window_end");
 
+        ImmutableBitSet newGroupSet = removeGroupingsByWindowBoundary(
+                aggr.getGroupSet(), prj.getProjects(), windowStartIndex, windowEndIndex);
+        if (newGroupSet == null) {
+            return;
+        }
+
+        final SortedSet<Integer> interestingFields =
+                (SortedSet<Integer>) RelOptUtil.getAllFields2(newGroupSet, aggr.getAggCallList());
+        final Map<Integer, Integer> map = new HashMap<>();
+        int i = 0;
+        for (int source : interestingFields) {
+            map.put(source, i++);
+        }
+
+        newGroupSet = newGroupSet.permute(map);
+
+        final ImmutableList.Builder<AggregateCall> aggCalls = ImmutableList.builder();
+        final int sourceCount = prj.getProjects().size();
+        final int targetCount = interestingFields.size();
+        final Mappings.TargetMapping targetMapping =
+                Mappings.target(map, sourceCount, targetCount);
+        for (AggregateCall aggregateCall : aggr.getAggCallList()) {
+            aggCalls.add(aggregateCall.transform(targetMapping));
+        }
+
+        //        List<AggregateCall> newAggrCallList = new ArrayList<>(aggr.getAggCallList().size());
+//        // remove projects that are references to window boundary and are only used for grouping
+//        List<Integer> unusedProjects = new ArrayList<>();
+//        for (int i = 0; i < prj.getProjects().size(); i++) {
+//            RexNode expr = prj.getProjects().get(i);
+//            if (expr instanceof RexInputRef) {
+//                int index = ((RexInputRef) expr).getIndex();
+//                int finalI = i;
+//                if ((index == windowStartIndex || index == windowEndIndex)
+//                        && aggr.getAggCallList().stream().flatMap(a -> a.getArgList().stream()).noneMatch(i1 -> i1 == finalI)) {
+//                    unusedProjects.add(i);
+//                }
+//            }
+//        }
+//
+//        // update the aggr to reflect removed projections
+//        TargetMapping mapping = Mappings.target(i -> unusedProjects.indexOf(i), prj.getProjects().size(), prj.getProjects().size() - unusedProjects.size());
+//        for (AggregateCall aggrCall : aggr.getAggCallList()) {
+//            newAggrCallList.add(aggrCall.transform(mapping));
+//        }
+//        return newAggrCallList;
+
+        List<RexNode> newProjects = Mappings.permute(prj.getProjects(), targetMapping.inverse());
+        List<String> newProjectsNames = Mappings.permute(prj.getRowType().getFieldNames(), targetMapping.inverse());
+        LogicalProject newProjectRel = LogicalProject.create(
+                OptUtils.toLogicalInput(input),
+                prj.getHints(),
+                newProjects,
+                newProjectsNames);
+
+        call.transformTo(new WindowAggregationLogicalRel(
+                aggr.getCluster(),
+                OptUtils.toLogicalConvention(aggr.getTraitSet()),
+                aggr.getHints(), // TODO collect all the hints?
+                newProjectRel,
+                newGroupSet,
+                null,
+                aggCalls.build(),
+                prj.getProjects(),
+                windowSize,
+                windowSlide));
+    }
+
+    /**
+     * @return null, if it's not a window aggregation or it's a grouping by an
+     *      expression with a window boundary
+     */
+    @Nullable
+    private ImmutableBitSet removeGroupingsByWindowBoundary(
+            ImmutableBitSet groupSet,
+            List<RexNode> projectExprs,
+            int windowStartIndex,
+            int windowEndIndex
+    ) {
         // remove window_start and window_end from the grouping set. They might be there multiple times
-        ImmutableBitSet.Builder newGroupSet = aggr.getGroupSet().rebuild();
+        Builder newGroupSet = groupSet.rebuild();
         boolean windowBoundaryGroupingFound = false;
-        for (Integer index : aggr.getGroupSet()) {
-            RexNode projection = prj.getProjects().get(index);
+        for (Integer index : groupSet) {
+            RexNode projection = projectExprs.get(index);
             if (projection instanceof RexInputRef) {
                 int projectedIndex = ((RexInputRef) projection).getIndex();
                 if (projectedIndex == windowStartIndex || projectedIndex == windowEndIndex) {
                     newGroupSet.clear(index);
                     windowBoundaryGroupingFound = true;
                 }
-            }
-
-            // Check that the expression doesn't refer to the winStart or winEnd columns, we don't allow
-            // grouping on expressions that refer to them except for a simple reference.
-            boolean[] refToWindowBoundaryFound = {false};
-            projection.accept(new RexVisitorImpl<Void>(true) {
-                @Override
-                public Void visitInputRef(RexInputRef inputRef) {
-                    refToWindowBoundaryFound[0] = true;
+            } else {
+                // Check that the expression doesn't refer to the winStart or winEnd columns, we don't allow
+                // grouping on expressions that refer to them except for a simple reference handled above
+                boolean[] refToWindowBoundaryFound = {false};
+                projection.accept(new RexVisitorImpl<Void>(true) {
+                    @Override
+                    public Void visitInputRef(RexInputRef inputRef) {
+                        refToWindowBoundaryFound[0] = true;
+                        return null;
+                    }
+                });
+                if (refToWindowBoundaryFound[0]) {
                     return null;
                 }
-            });
-            if (refToWindowBoundaryFound[0]) {
-                return;
             }
         }
 
         if (!windowBoundaryGroupingFound) {
             // not grouping by either window_start or window_end, can't use window aggregation
-            return;
+            return null;
+        }
+        return newGroupSet.build();
+    }
+
+    /**
+     * @return a tuple of {aggrCalls, groupSet} for the new aggregation
+     */
+    @Nonnull
+    private Tuple2<List<AggregateCall>, ImmutableBitSet> updateAggregateCalls(
+            LogicalAggregate aggr,
+            ImmutableBitSet newGroupSet,
+            LogicalProject prj
+    ) {
+        final SortedSet<Integer> interestingFields =
+                (SortedSet<Integer>) RelOptUtil.getAllFields2(newGroupSet, aggr.getAggCallList());
+        final Map<Integer, Integer> map = new HashMap<>();
+        int i = 0;
+        for (int source : interestingFields) {
+            map.put(source, i++);
         }
 
-        new WindowAggregationLogicalRel(
-                aggr.getCluster(),
-                OptUtils.toLogicalConvention(aggr.getTraitSet()),
-                aggr.getHints(), // TODO collect all the hints?
-                OptUtils.toLogicalInput(input),
-                newGroupSet.build(),
-                null,
-                aggr.getAggCallList()
-        );
+        newGroupSet = newGroupSet.permute(map);
+
+        final ImmutableList.Builder<AggregateCall> aggCalls = ImmutableList.builder();
+        final int sourceCount = aggr.getInput().getRowType().getFieldCount();
+        final int targetCount = prj.getProjects().size();
+        final Mappings.TargetMapping targetMapping =
+                Mappings.target(map, sourceCount, targetCount);
+        for (AggregateCall aggregateCall : aggr.getAggCallList()) {
+            aggCalls.add(aggregateCall.transform(targetMapping));
+        }
+
+        return Tuple2.tuple2(aggCalls.build(), newGroupSet);
+
+//        List<AggregateCall> newAggrCallList = new ArrayList<>(aggr.getAggCallList().size());
+//        // remove projects that are references to window boundary and are only used for grouping
+//        List<Integer> unusedProjects = new ArrayList<>();
+//        for (int i = 0; i < prj.getProjects().size(); i++) {
+//            RexNode expr = prj.getProjects().get(i);
+//            if (expr instanceof RexInputRef) {
+//                int index = ((RexInputRef) expr).getIndex();
+//                int finalI = i;
+//                if ((index == windowStartIndex || index == windowEndIndex)
+//                        && aggr.getAggCallList().stream().flatMap(a -> a.getArgList().stream()).noneMatch(i1 -> i1 == finalI)) {
+//                    unusedProjects.add(i);
+//                }
+//            }
+//        }
+//
+//        // update the aggr to reflect removed projections
+//        TargetMapping mapping = Mappings.target(i -> unusedProjects.indexOf(i), prj.getProjects().size(), prj.getProjects().size() - unusedProjects.size());
+//        for (AggregateCall aggrCall : aggr.getAggCallList()) {
+//            newAggrCallList.add(aggrCall.transform(mapping));
+//        }
+//        return newAggrCallList;
     }
 
     private static boolean isGroupedBy(int fieldIndex, LogicalProject prj, LogicalAggregate aggr) {
