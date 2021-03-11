@@ -16,6 +16,7 @@
 
 package com.hazelcast.jet.sql.impl.opt.logical;
 
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.AbstractRelNode;
@@ -23,20 +24,18 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.type.RelDataType;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class ValuesLogicalRel extends AbstractRelNode implements LogicalRel {
 
     private final RelDataType rowType;
-    private final List<Object[]> tuples;
+    private final List<JetSqlRow> tuples;
 
     ValuesLogicalRel(
             RelOptCluster cluster,
             RelTraitSet traits,
             RelDataType rowType,
-            List<Object[]> tuples
+            List<JetSqlRow> tuples
     ) {
         super(cluster, traits);
 
@@ -44,7 +43,7 @@ public class ValuesLogicalRel extends AbstractRelNode implements LogicalRel {
         this.tuples = tuples;
     }
 
-    public List<Object[]> tuples() {
+    public List<JetSqlRow> tuples() {
         return tuples;
     }
 
@@ -61,12 +60,6 @@ public class ValuesLogicalRel extends AbstractRelNode implements LogicalRel {
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw)
-                .item("tuples",
-                        tuples.stream()
-                                .map(row -> Arrays.stream(row)
-                                        .map(String::valueOf)
-                                        .collect(Collectors.joining(", ", "{ ", " }")))
-                                .collect(Collectors.joining(", ", "[", "]"))
-                );
+                .item("tupleCount", tuples.size());
     }
 }

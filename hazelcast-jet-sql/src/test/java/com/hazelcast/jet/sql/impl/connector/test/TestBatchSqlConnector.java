@@ -17,6 +17,7 @@
 package com.hazelcast.jet.sql.impl.connector.test;
 
 import com.hazelcast.jet.core.DAG;
+import com.hazelcast.jet.core.Edge;
 import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.jet.impl.pipeline.transform.BatchSourceTransform;
@@ -24,6 +25,7 @@ import com.hazelcast.jet.pipeline.BatchSource;
 import com.hazelcast.jet.pipeline.test.TestSources;
 import com.hazelcast.jet.sql.impl.ExpressionUtil;
 import com.hazelcast.jet.sql.impl.connector.SqlConnector;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.jet.sql.impl.schema.JetTable;
 import com.hazelcast.jet.sql.impl.schema.MappingField;
 import com.hazelcast.spi.impl.NodeEngine;
@@ -45,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
+import static com.hazelcast.jet.core.processor.Processors.mapP;
 import static com.hazelcast.jet.sql.impl.ExpressionUtil.NOT_IMPLEMENTED_ARGUMENTS_CONTEXT;
 import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.resolveTypeForTypeFamily;
 import static java.lang.String.join;
@@ -206,12 +209,16 @@ public class TestBatchSqlConnector implements SqlConnector {
     ) {
         List<Object[]> items = ((TestValuesTable) table).rows
                 .stream()
-                .map(row -> ExpressionUtil.evaluate(predicate, projection, row, NOT_IMPLEMENTED_ARGUMENTS_CONTEXT))
+                .map(row -> ExpressionUtil.evaluate(predicate, projection, new JetSqlRow(row), NOT_IMPLEMENTED_ARGUMENTS_CONTEXT))
                 .filter(Objects::nonNull)
+                .map(JetSqlRow::getValues) // we need this because JetSqlRow is not java-serializable
                 .collect(toList());
         BatchSource<Object[]> source = TestSources.itemsDistributed(items);
         ProcessorMetaSupplier pms = ((BatchSourceTransform<Object[]>) source).metaSupplier;
-        return dag.newUniqueVertex(table.toString(), pms);
+        Vertex v1 = dag.newUniqueVertex(table.toString(), pms);
+        Vertex v2 = dag.newUniqueVertex(table.toString() + "-map", mapP(row -> new JetSqlRow((Object[]) row)));
+        dag.edge(Edge.between(v1, v2).isolated());
+        return v2;
     }
 
     public static class TestValuesTable extends JetTable {

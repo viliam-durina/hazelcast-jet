@@ -17,6 +17,7 @@
 package com.hazelcast.jet.sql.impl.schema;
 
 import com.hazelcast.jet.sql.impl.connector.SqlConnector;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeComparability;
@@ -57,7 +58,7 @@ public abstract class JetDynamicTableFunction implements JetTableFunction, Table
 
     @Override
     public final Type getElementType(List<Object> arguments) {
-        return Object[].class;
+        return JetSqlRow.class;
     }
 
     @Override

@@ -18,6 +18,7 @@ package com.hazelcast.jet.sql.impl.opt;
 
 import com.google.common.collect.ImmutableList;
 import com.hazelcast.jet.impl.util.Util;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.jet.sql.impl.schema.JetTable;
 import com.hazelcast.sql.impl.QueryParameterMetadata;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.RexToExpression;
@@ -56,6 +57,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static com.hazelcast.jet.sql.impl.opt.JetConventions.LOGICAL;
 import static com.hazelcast.jet.sql.impl.opt.JetConventions.PHYSICAL;
@@ -225,20 +227,18 @@ public final class OptUtils {
         return new RexToExpressionVisitor(schema, new QueryParameterMetadata());
     }
 
-    public static List<Object[]> convert(ImmutableList<ImmutableList<RexLiteral>> values) {
-        List<Object[]> rows = new ArrayList<>(values.size());
-        for (List<RexLiteral> tuple : values) {
-
-            Object[] result = new Object[tuple.size()];
-            for (int i = 0; i < tuple.size(); i++) {
-                RexLiteral literal = tuple.get(i);
-                Expression<?> expression = RexToExpression.convertLiteral(literal);
-                Object value = expression.eval(null, null);
-                result[i] = value;
-            }
-            rows.add(result);
-        }
-        return rows;
+    public static Stream<JetSqlRow> convert(ImmutableList<ImmutableList<RexLiteral>> values) {
+        return values.stream()
+              .map(tuple -> {
+                  JetSqlRow row = new JetSqlRow(tuple.size());
+                  for (int i = 0; i < tuple.size(); i++) {
+                      RexLiteral literal = tuple.get(i);
+                      Expression<?> expression = RexToExpression.convertLiteral(literal);
+                      Object value = expression.eval(null, null);
+                      row.set(i, value);
+                  }
+                  return row;
+              });
     }
 
     /**

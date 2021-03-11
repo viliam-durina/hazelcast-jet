@@ -18,6 +18,7 @@ package com.hazelcast.jet.sql.impl.opt.physical;
 
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.jet.sql.impl.opt.OptUtils;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.sql.impl.plan.node.PlanNodeSchema;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
@@ -26,20 +27,18 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.type.RelDataType;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class ValuesPhysicalRel extends AbstractRelNode implements PhysicalRel {
 
     private final RelDataType rowType;
-    private final List<Object[]> tuples;
+    private final List<JetSqlRow> tuples;
 
     ValuesPhysicalRel(
             RelOptCluster cluster,
             RelTraitSet traits,
             RelDataType rowType,
-            List<Object[]> tuples
+            List<JetSqlRow> tuples
     ) {
         super(cluster, traits);
 
@@ -47,7 +46,7 @@ public class ValuesPhysicalRel extends AbstractRelNode implements PhysicalRel {
         this.tuples = tuples;
     }
 
-    public List<Object[]> tuples() {
+    public List<JetSqlRow> tuples() {
         return tuples;
     }
 
@@ -74,12 +73,6 @@ public class ValuesPhysicalRel extends AbstractRelNode implements PhysicalRel {
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw)
-                .item("tuples",
-                        tuples.stream()
-                                .map(row -> Arrays.stream(row)
-                                        .map(String::valueOf)
-                                        .collect(Collectors.joining(", ", "{ ", " }")))
-                                .collect(Collectors.joining(", ", "[", "]"))
-                );
+                .item("tupleCount", tuples.size());
     }
 }

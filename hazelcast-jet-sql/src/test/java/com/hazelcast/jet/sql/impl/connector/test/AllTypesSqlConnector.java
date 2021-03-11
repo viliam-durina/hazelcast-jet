@@ -25,6 +25,7 @@ import com.hazelcast.jet.pipeline.test.TestSources;
 import com.hazelcast.jet.sql.SqlTestSupport;
 import com.hazelcast.jet.sql.impl.ExpressionUtil;
 import com.hazelcast.jet.sql.impl.connector.SqlConnector;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.jet.sql.impl.schema.JetTable;
 import com.hazelcast.jet.sql.impl.schema.MappingField;
 import com.hazelcast.spi.impl.NodeEngine;
@@ -78,7 +79,7 @@ public class AllTypesSqlConnector implements SqlConnector {
 
     private static final List<TableField> FIELD_LIST2 = toList(FIELD_LIST, f -> new TableField(f.name(), f.type(), false));
 
-    private static final Object[] VALUES = new Object[]{
+    private static final JetSqlRow VALUES = new JetSqlRow(new Object[]{
             "string",
             true,
             (byte) 127,
@@ -93,7 +94,7 @@ public class AllTypesSqlConnector implements SqlConnector {
             LocalDateTime.of(2020, 4, 15, 12, 23, 34, 1_000_000),
             OffsetDateTime.of(2020, 4, 15, 12, 23, 34, 200_000_000, UTC),
             null
-    };
+    });
 
     public static final SqlTestSupport.Row ALL_TYPES_ROW = new SqlTestSupport.Row(VALUES);
 
@@ -147,9 +148,9 @@ public class AllTypesSqlConnector implements SqlConnector {
             @Nullable Expression<Boolean> predicate,
             @Nonnull List<Expression<?>> projection
     ) {
-        Object[] row = ExpressionUtil.evaluate(predicate, projection, VALUES, NOT_IMPLEMENTED_ARGUMENTS_CONTEXT);
-        BatchSource<Object[]> source = TestSources.items(singletonList(row));
-        ProcessorMetaSupplier pms = ((BatchSourceTransform<Object[]>) source).metaSupplier;
+        JetSqlRow row = ExpressionUtil.evaluate(predicate, projection, VALUES, NOT_IMPLEMENTED_ARGUMENTS_CONTEXT);
+        BatchSource<JetSqlRow> source = TestSources.items(singletonList(row));
+        ProcessorMetaSupplier pms = ((BatchSourceTransform<JetSqlRow>) source).metaSupplier;
         return dag.newUniqueVertex(table.toString(), pms);
     }
 

@@ -18,6 +18,7 @@ package com.hazelcast.jet.sql.impl.connector.keyvalue;
 
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.jet.sql.impl.SimpleExpressionEvalContext;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.DataSerializable;
@@ -41,7 +42,7 @@ import static com.hazelcast.jet.sql.impl.ExpressionUtil.evaluate;
 
 /**
  * A utility to convert a key-value entry represented as {@code
- * Entry<Object, Object>} to a row represented as {@code Object[]}. As a
+ * Entry<Object, Object>} to a row represented as {@link JetSqlRow}. As a
  * convenience, it also contains a {@link #predicate} - it is applied
  * before projecting.
  * <p>
@@ -96,7 +97,7 @@ public class KvRowProjector implements Row {
         return extractors;
     }
 
-    public Object[] project(Entry<Object, Object> entry) {
+    public JetSqlRow project(Entry<Object, Object> entry) {
         keyTarget.setTarget(entry.getKey(), null);
         valueTarget.setTarget(entry.getValue(), null);
 
@@ -104,9 +105,9 @@ public class KvRowProjector implements Row {
             return null;
         }
 
-        Object[] row = new Object[projections.size()];
+        JetSqlRow row = new JetSqlRow(projections.size());
         for (int i = 0; i < projections.size(); i++) {
-            row[i] = evaluate(projections.get(i), this, context);
+            row.set(i, evaluate(projections.get(i), this, context));
         }
         return row;
     }

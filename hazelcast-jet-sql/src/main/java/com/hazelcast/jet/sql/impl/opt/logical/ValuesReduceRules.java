@@ -19,6 +19,7 @@ package com.hazelcast.jet.sql.impl.opt.logical;
 import com.google.common.collect.ImmutableList;
 import com.hazelcast.jet.sql.impl.ExpressionUtil;
 import com.hazelcast.jet.sql.impl.opt.OptUtils;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.plan.node.PlanNodeSchema;
 import org.apache.calcite.plan.Convention;
@@ -138,7 +139,7 @@ final class ValuesReduceRules {
                     PlanNodeSchema schema = OptUtils.schema(union.getRowType());
                     RexVisitor<Expression<?>> converter = OptUtils.createRexToExpressionVisitor(schema);
 
-                    List<Object[]> rows = new ArrayList<>();
+                    List<JetSqlRow> rows = new ArrayList<>();
                     for (RelNode input : union.getInputs()) {
                         ReducedLogicalValues values = OptUtils.findMatchingRel(input, REDUCED_VALUES_CHILD_OPERAND);
 
@@ -152,7 +153,7 @@ final class ValuesReduceRules {
                                 ? null
                                 : toList(project, node -> node.accept(converter));
 
-                        List<Object[]> row = ExpressionUtil.evaluate(
+                        List<JetSqlRow> row = ExpressionUtil.evaluate(
                                 predicate,
                                 projection,
                                 OptUtils.convert(values.tuples()),

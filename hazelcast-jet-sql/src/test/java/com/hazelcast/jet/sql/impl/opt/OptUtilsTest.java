@@ -17,13 +17,14 @@
 package com.hazelcast.jet.sql.impl.opt;
 
 import com.google.common.collect.ImmutableList;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.sql.impl.calcite.HazelcastRexBuilder;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastTypeFactory;
 import org.apache.calcite.rex.RexLiteral;
 import org.junit.Test;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.stream.Stream;
 
 import static org.apache.calcite.sql.type.SqlTypeName.INTEGER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,9 +38,9 @@ public class OptUtilsTest {
     public void test_convert() {
         ImmutableList<ImmutableList<RexLiteral>> values = ImmutableList.of(literals(0, "a"), literals(1, "b"));
 
-        List<Object[]> converted = OptUtils.convert(values);
+        Stream<JetSqlRow> converted = OptUtils.convert(values);
 
-        assertThat(converted).containsExactly(new Object[]{0, "a"}, new Object[]{1, "b"});
+        assertThat(converted.map(JetSqlRow::getValues)).containsExactly(new Object[]{0, "a"}, new Object[]{1, "b"});
     }
 
     private static ImmutableList<RexLiteral> literals(int i, String s) {

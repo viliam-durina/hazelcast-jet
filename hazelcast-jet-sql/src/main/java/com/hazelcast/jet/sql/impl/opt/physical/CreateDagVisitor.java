@@ -32,6 +32,7 @@ import com.hazelcast.jet.pipeline.ServiceFactories;
 import com.hazelcast.jet.sql.impl.ExpressionUtil;
 import com.hazelcast.jet.sql.impl.SimpleExpressionEvalContext;
 import com.hazelcast.jet.sql.impl.connector.SqlConnector.VertexWithInputConfig;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.schema.Table;
@@ -62,7 +63,7 @@ public class CreateDagVisitor {
     }
 
     public Vertex onValues(ValuesPhysicalRel rel) {
-        List<Object[]> values = rel.tuples();
+        List<JetSqlRow> values = rel.tuples();
 
         return dag.newUniqueVertex("Values", convenientSourceP(
                 pCtx -> null,
@@ -103,7 +104,7 @@ public class CreateDagVisitor {
                     SimpleExpressionEvalContext context = new SimpleExpressionEvalContext(serializationService);
                     return ExpressionUtil.filterFn(filter, context);
                 }),
-                (Predicate<Object[]> filterFn, Object[] row) -> filterFn.test(row)));
+                (Predicate<JetSqlRow> filterFn, JetSqlRow row) -> filterFn.test(row)));
         connectInput(rel.getInput(), vertex, null);
         return vertex;
     }
@@ -117,7 +118,7 @@ public class CreateDagVisitor {
                     SimpleExpressionEvalContext context = new SimpleExpressionEvalContext(serializationService);
                     return ExpressionUtil.projectionFn(projection, context);
                 }),
-                (Function<Object[], Object[]> projectionFn, Object[] row) -> projectionFn.apply(row)
+                (Function<JetSqlRow, JetSqlRow> projectionFn, JetSqlRow row) -> projectionFn.apply(row)
         ));
 
         connectInput(rel.getInput(), vertex, null);
@@ -125,7 +126,7 @@ public class CreateDagVisitor {
     }
 
     public Vertex onAggregate(AggregatePhysicalRel rel) {
-        AggregateOperation<?, Object[]> aggregateOperation = rel.aggrOp();
+        AggregateOperation<?, JetSqlRow> aggregateOperation = rel.aggrOp();
 
         Vertex vertex = dag.newUniqueVertex(
                 "Aggregate",
@@ -139,7 +140,7 @@ public class CreateDagVisitor {
     }
 
     public Vertex onAccumulate(AggregateAccumulatePhysicalRel rel) {
-        AggregateOperation<?, Object[]> aggregateOperation = rel.aggrOp();
+        AggregateOperation<?, JetSqlRow> aggregateOperation = rel.aggrOp();
 
         Vertex vertex = dag.newUniqueVertex(
                 "Accumulate",
@@ -150,7 +151,7 @@ public class CreateDagVisitor {
     }
 
     public Vertex onCombine(AggregateCombinePhysicalRel rel) {
-        AggregateOperation<?, Object[]> aggregateOperation = rel.aggrOp();
+        AggregateOperation<?, JetSqlRow> aggregateOperation = rel.aggrOp();
 
         Vertex vertex = dag.newUniqueVertex(
                 "Combine",
@@ -164,8 +165,8 @@ public class CreateDagVisitor {
     }
 
     public Vertex onAggregateByKey(AggregateByKeyPhysicalRel rel) {
-        FunctionEx<Object[], ?> groupKeyFn = rel.groupKeyFn();
-        AggregateOperation<?, Object[]> aggregateOperation = rel.aggrOp();
+        FunctionEx<JetSqlRow, ?> groupKeyFn = rel.groupKeyFn();
+        AggregateOperation<?, JetSqlRow> aggregateOperation = rel.aggrOp();
 
         Vertex vertex = dag.newUniqueVertex(
                 "AggregateByKey",
@@ -176,8 +177,8 @@ public class CreateDagVisitor {
     }
 
     public Vertex onAccumulateByKey(AggregateAccumulateByKeyPhysicalRel rel) {
-        FunctionEx<Object[], ?> groupKeyFn = rel.groupKeyFn();
-        AggregateOperation<?, Object[]> aggregateOperation = rel.aggrOp();
+        FunctionEx<JetSqlRow, ?> groupKeyFn = rel.groupKeyFn();
+        AggregateOperation<?, JetSqlRow> aggregateOperation = rel.aggrOp();
 
         Vertex vertex = dag.newUniqueVertex(
                 "AccumulateByKey",
@@ -188,7 +189,7 @@ public class CreateDagVisitor {
     }
 
     public Vertex onCombineByKey(AggregateCombineByKeyPhysicalRel rel) {
-        AggregateOperation<?, Object[]> aggregateOperation = rel.aggrOp();
+        AggregateOperation<?, JetSqlRow> aggregateOperation = rel.aggrOp();
 
         Vertex vertex = dag.newUniqueVertex(
                 "CombineByKey",

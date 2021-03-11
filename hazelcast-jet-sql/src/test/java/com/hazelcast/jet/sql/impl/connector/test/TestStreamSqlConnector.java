@@ -22,10 +22,11 @@ import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.jet.impl.pipeline.transform.StreamSourceTransform;
 import com.hazelcast.jet.pipeline.test.TestSources;
-import com.hazelcast.jet.sql.impl.connector.SqlConnector;
 import com.hazelcast.jet.sql.impl.ExpressionUtil;
-import com.hazelcast.jet.sql.impl.schema.MappingField;
+import com.hazelcast.jet.sql.impl.connector.SqlConnector;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.jet.sql.impl.schema.JetTable;
+import com.hazelcast.jet.sql.impl.schema.MappingField;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.expression.Expression;
@@ -103,9 +104,9 @@ public class TestStreamSqlConnector implements SqlConnector {
             @Nullable Expression<Boolean> predicate,
             @Nonnull List<Expression<?>> projection
     ) {
-        StreamSourceTransform<Object[]> source = (StreamSourceTransform<Object[]>) TestSources.itemStream(100,
+        StreamSourceTransform<JetSqlRow> source = (StreamSourceTransform<JetSqlRow>) TestSources.itemStream(100,
                 (timestamp, sequence) ->
-                        ExpressionUtil.evaluate(predicate, projection, new Object[]{sequence},
+                        ExpressionUtil.evaluate(predicate, projection, new JetSqlRow(new Object[]{sequence}),
                                 NOT_IMPLEMENTED_ARGUMENTS_CONTEXT));
         ProcessorMetaSupplier pms = source.metaSupplierFn.apply(EventTimePolicy.noEventTime());
         return dag.newUniqueVertex("TestStream[" + table.getSchemaName() + "." + table.getSqlName() + ']', pms);

@@ -25,6 +25,7 @@ import com.hazelcast.jet.pipeline.ServiceFactories;
 import com.hazelcast.jet.sql.impl.ExpressionUtil;
 import com.hazelcast.jet.sql.impl.SimpleExpressionEvalContext;
 import com.hazelcast.jet.sql.impl.connector.keyvalue.KvRowProjector;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.map.IMap;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
@@ -43,7 +44,6 @@ import java.util.List;
 
 import static com.hazelcast.jet.Traversers.singleton;
 import static com.hazelcast.jet.Util.entry;
-import static com.hazelcast.jet.impl.util.Util.extendArray;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
 @SuppressFBWarnings(
@@ -102,18 +102,18 @@ final class JoinByPrimitiveKeyProcessorSupplier implements ProcessorSupplier, Da
                     ServiceFactories.nonSharedService(ctx -> context),
                     null,
                     MAX_CONCURRENT_OPS,
-                    (TransientReference<IMap<Object, Object>> ctx, Object[] left) -> {
-                        Object key = left[leftEquiJoinIndex];
+                    (TransientReference<IMap<Object, Object>> ctx, JetSqlRow left) -> {
+                        Object key = left.get(serializationService, leftEquiJoinIndex);
                         if (key == null) {
                             return inner ? null : completedFuture(null);
                         }
                         return ctx.ref.getAsync(key).toCompletableFuture();
                     },
                     (left, value) -> {
-                        Object[] joined = join(left, left[leftEquiJoinIndex], value, projector, condition, evalContext);
+                        JetSqlRow joined = join(left, left.get(serializationService, leftEquiJoinIndex), value, projector, condition, evalContext);
                         return joined != null ? singleton(joined)
                                 : inner ? null
-                                : singleton(extendArray(left, projector.getColumnCount()));
+                                : singleton(left.extendedRow(projector.getColumnCount()));
                     }
             );
             processors.add(processor);
@@ -121,8 +121,8 @@ final class JoinByPrimitiveKeyProcessorSupplier implements ProcessorSupplier, Da
         return processors;
     }
 
-    private static Object[] join(
-            Object[] left,
+    private static JetSqlRow join(
+            JetSqlRow left,
             Object key,
             Object value,
             KvRowProjector rightRowProjector,
@@ -133,7 +133,7 @@ final class JoinByPrimitiveKeyProcessorSupplier implements ProcessorSupplier, Da
             return null;
         }
 
-        Object[] right = rightRowProjector.project(entry(key, value));
+        JetSqlRow right = rightRowProjector.project(entry(key, value));
         if (right == null) {
             return null;
         }

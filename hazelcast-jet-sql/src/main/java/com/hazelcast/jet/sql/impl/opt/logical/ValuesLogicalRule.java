@@ -23,6 +23,8 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.ConverterRule;
 import org.apache.calcite.rel.logical.LogicalValues;
 
+import java.util.stream.Collectors;
+
 import static com.hazelcast.jet.sql.impl.opt.JetConventions.LOGICAL;
 
 final class ValuesLogicalRule extends ConverterRule {
@@ -44,7 +46,7 @@ final class ValuesLogicalRule extends ConverterRule {
                 values.getCluster(),
                 OptUtils.toLogicalConvention(values.getTraitSet()),
                 values.getRowType(),
-                OptUtils.convert(values.getTuples())
+                OptUtils.convert(values.getTuples()).collect(Collectors.toList())
         );
     }
 }

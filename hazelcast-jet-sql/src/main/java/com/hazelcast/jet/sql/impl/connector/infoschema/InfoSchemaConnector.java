@@ -24,9 +24,10 @@ import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.ProcessorSupplier;
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.jet.impl.execution.init.Contexts.ProcCtx;
+import com.hazelcast.jet.sql.impl.ExpressionUtil;
 import com.hazelcast.jet.sql.impl.SimpleExpressionEvalContext;
 import com.hazelcast.jet.sql.impl.connector.SqlConnector;
-import com.hazelcast.jet.sql.impl.ExpressionUtil;
+import com.hazelcast.jet.sql.impl.processors.JetSqlRow;
 import com.hazelcast.jet.sql.impl.schema.MappingField;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.sql.impl.expression.Expression;
@@ -106,9 +107,9 @@ final class InfoSchemaConnector implements SqlConnector {
 
         private final Expression<Boolean> predicate;
         private final List<Expression<?>> projection;
-        private List<Object[]> rows;
+        private final List<Object[]> rows;
 
-        private Traverser<Object[]> traverser;
+        private Traverser<JetSqlRow> traverser;
 
         private StaticSourceP(Expression<Boolean> predicate, List<Expression<?>> projection, List<Object[]> rows) {
             this.predicate = predicate;
@@ -120,7 +121,8 @@ final class InfoSchemaConnector implements SqlConnector {
         protected void init(@Nonnull Context context) {
             InternalSerializationService serializationService = ((ProcCtx) context).serializationService();
             SimpleExpressionEvalContext evalContext = new SimpleExpressionEvalContext(serializationService);
-            List<Object[]> processedRows = ExpressionUtil.evaluate(predicate, projection, rows, evalContext);
+            List<JetSqlRow> processedRows = ExpressionUtil.evaluate(predicate, projection,
+                    rows.stream().map(row -> new JetSqlRow(row)), evalContext);
             traverser = Traversers.traverseIterable(processedRows);
         }
 

@@ -46,6 +46,9 @@ public final class JetFactoryIdHelper {
     public static final String JET_KINESIS_DS_FACTORY = "hazelcast.serialization.ds.jet.kinesis";
     public static final int JET_KINESIS_DS_FACTORY_ID = -10007;
 
+    public static final String JET_SQL_IMPL_DS_FACTORY = "hazelcast.serialization.ds.jet.sql";
+    public static final int JET_SQL_IMPL_DS_FACTORY_ID = -10008;
+
     private JetFactoryIdHelper() {
     }
 }
