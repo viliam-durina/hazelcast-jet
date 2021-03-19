@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.impl.operation;
 
-import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.execution.init.JetInitDataSerializerHook;
@@ -26,16 +25,16 @@ import com.hazelcast.nio.ObjectDataOutput;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
-import static com.hazelcast.jet.Util.idToString;
-
 public class SubmitLightJobOperation extends AsyncOperation {
 
+    private long jobId;
     private DAG dag;
 
-    public SubmitLightJobOperation() {
-    }
+    // for deserialization
+    public SubmitLightJobOperation() { }
 
-    public SubmitLightJobOperation(DAG dag) {
+    public SubmitLightJobOperation(long jobId, DAG dag) {
+        this.jobId = jobId;
         this.dag = dag;
     }
 
@@ -47,10 +46,7 @@ public class SubmitLightJobOperation extends AsyncOperation {
     @Override
     protected CompletableFuture<Void> doRun() {
         long jobId = getJetService().getJobRepository().newJobId();
-        if (!getNodeEngine().getClusterService().isMaster()) {
-            throw new JetException("Cannot submit job " + idToString(jobId) + " to non-master node. Master address: "
-                    + getNodeEngine().getClusterService().getMasterAddress());
-        }
+        assert !getNodeEngine().getLocalMember().isLiteMember() : "light job submitted to a lite member";
         return new LightMasterContext(getNodeEngine(), dag, jobId)
                 .start();
     }
@@ -63,12 +59,14 @@ public class SubmitLightJobOperation extends AsyncOperation {
     @Override
     protected void writeInternal(ObjectDataOutput out) throws IOException {
         super.writeInternal(out);
+        out.writeLong(jobId);
         out.writeObject(dag);
     }
 
     @Override
     protected void readInternal(ObjectDataInput in) throws IOException {
         super.readInternal(in);
+        jobId = in.readLong();
         dag = in.readObject();
     }
 }

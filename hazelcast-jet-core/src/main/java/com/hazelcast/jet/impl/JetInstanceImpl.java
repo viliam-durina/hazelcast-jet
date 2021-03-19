@@ -60,10 +60,11 @@ public class JetInstanceImpl extends AbstractJetInstance {
 
     @Nonnull @Override
     public LightJob newLightJob(DAG dag) {
-        Address masterAddress = nodeEngine.getMasterAddress();
+        Address thisAddress = nodeEngine.getThisAddress();
+        SubmitLightJobOperation operation = new SubmitLightJobOperation(newJobId(), dag);
         Future<Void> future = nodeEngine
                 .getOperationService()
-                .createInvocationBuilder(JetService.SERVICE_NAME, new SubmitLightJobOperation(dag), masterAddress)
+                .createInvocationBuilder(JetService.SERVICE_NAME, operation, thisAddress)
                 .invoke();
 
         return new LightJobProxy(future);

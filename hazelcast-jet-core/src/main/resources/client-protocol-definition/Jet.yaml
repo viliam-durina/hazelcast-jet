@@ -280,6 +280,12 @@ methods:
       retryable: true
       partitionIdentifier: -1
       params:
+        - name: jobId
+          type: long
+          nullable: false
+          # TODO really 2.0?
+          since: 2.0
+          doc: ''
         - name: dag
           type: Data
           nullable: false

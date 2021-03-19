@@ -64,9 +64,9 @@ public class JetClientInstanceImpl extends AbstractJetInstance {
     @Nonnull @Override
     public LightJob newLightJob(DAG dag) {
         Data dagSerialized = serializationService.toData(dag);
-        UUID masterUuid = client.getClientClusterService().getMasterMember().getUuid();
-        ClientInvocation invocation = new ClientInvocation(
-                client, JetSubmitLightJobCodec.encodeRequest(dagSerialized), null, masterUuid);
+        ClientMessage message = JetSubmitLightJobCodec.encodeRequest(newJobId(), dagSerialized);
+        // TODO [viliam] ensure it's not executed on a lite member
+        ClientInvocation invocation = new ClientInvocation(client, message, null);
 
         ClientInvocationFuture future = invocation.invoke();
         return new ClientLightJobProxy(future);
