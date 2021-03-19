@@ -191,6 +191,7 @@ public interface JetInstance {
 
     @Nonnull
     default LightJob newLightJob(Pipeline p) {
+        // TODO [viliam] don't convert on the client
         return newLightJob(p.toDag());
     }
 

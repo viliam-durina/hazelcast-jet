@@ -37,8 +37,6 @@ import com.hazelcast.jet.impl.execution.init.ExecutionPlan;
 import com.hazelcast.jet.impl.metrics.RawJobMetrics;
 import com.hazelcast.jet.impl.operation.SnapshotPhase1Operation.SnapshotPhase1Result;
 import com.hazelcast.jet.impl.util.LoggingUtil;
-import com.hazelcast.jet.impl.metrics.JetMetricsService;
-import com.hazelcast.jet.impl.operation.SnapshotOperation.SnapshotOperationResult;
 import com.hazelcast.jet.impl.util.Util;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.spi.impl.NodeEngine;
@@ -213,7 +211,7 @@ public class ExecutionContext implements DynamicMetricsProvider {
                 IOUtil.delete(dir);
             } catch (Exception e) {
                 logger.warning("Failed to delete temporary directory " + dir);
-    }
+            }
         });
 
         if (serializationService != null) {
@@ -324,7 +322,7 @@ public class ExecutionContext implements DynamicMetricsProvider {
 
     public RawJobMetrics getJobMetrics() {
         return jobMetrics;
-}
+    }
 
     public void setJobMetrics(RawJobMetrics jobMetrics) {
         this.jobMetrics = jobMetrics;

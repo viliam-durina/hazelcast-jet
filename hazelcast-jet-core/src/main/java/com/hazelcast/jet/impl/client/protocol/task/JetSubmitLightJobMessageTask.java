@@ -17,15 +17,15 @@
 package com.hazelcast.jet.impl.client.protocol.task;
 
 import com.hazelcast.client.impl.protocol.ClientMessage;
-import com.hazelcast.client.impl.protocol.codec.JetSubmitJobCodec;
-import com.hazelcast.client.impl.protocol.codec.JetSubmitLightJobCodec;
-import com.hazelcast.instance.Node;
+import com.hazelcast.instance.impl.Node;
+import com.hazelcast.internal.nio.Connection;
+import com.hazelcast.internal.serialization.Data;
+import com.hazelcast.jet.impl.client.protocol.codec.JetSubmitJobCodec;
 import com.hazelcast.jet.impl.client.protocol.codec.JetSubmitLightJobCodec;
 import com.hazelcast.jet.impl.operation.SubmitLightJobOperation;
-import com.hazelcast.nio.Connection;
-import com.hazelcast.spi.Operation;
+import com.hazelcast.spi.impl.operationservice.Operation;
 
-public class JetSubmitLightJobMessageTask extends AbstractJetMessageTask<JetSubmitLightJobCodec.RequestParameters, Void> {
+public class JetSubmitLightJobMessageTask extends AbstractJetMessageTask<Data, Void> {
 
     protected JetSubmitLightJobMessageTask(ClientMessage clientMessage, Node node, Connection connection) {
         super(clientMessage, node, connection, JetSubmitLightJobCodec::decodeRequest,
@@ -34,7 +34,7 @@ public class JetSubmitLightJobMessageTask extends AbstractJetMessageTask<JetSubm
 
     @Override
     protected Operation prepareOperation() {
-        return new SubmitLightJobOperation(serializationService.toObject(parameters.dag));
+        return new SubmitLightJobOperation(serializationService.toObject(parameters));
     }
 
     @Override

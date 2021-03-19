@@ -16,7 +16,7 @@
 
 package com.hazelcast.jet.impl;
 
-import com.hazelcast.client.spi.impl.ClientInvocationFuture;
+import com.hazelcast.client.impl.spi.impl.ClientInvocationFuture;
 import com.hazelcast.jet.LightJob;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;

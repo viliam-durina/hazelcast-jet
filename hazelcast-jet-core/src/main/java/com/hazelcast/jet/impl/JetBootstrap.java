@@ -82,7 +82,7 @@ import static com.hazelcast.spi.properties.ClusterProperty.LOGGING_TYPE;
  * load and use its classes. However, from within a running {@code main()}
  * method it is not trivial to find out the filename of the JAR containing
  * it.
- **/
+ */
 public final class JetBootstrap {
 
     // supplier should be set only once

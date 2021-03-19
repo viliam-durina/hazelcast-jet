@@ -64,9 +64,9 @@ public class JetClientInstanceImpl extends AbstractJetInstance {
     @Nonnull @Override
     public LightJob newLightJob(DAG dag) {
         Data dagSerialized = serializationService.toData(dag);
+        UUID masterUuid = client.getClientClusterService().getMasterMember().getUuid();
         ClientInvocation invocation = new ClientInvocation(
-                client, JetSubmitLightJobCodec.encodeRequest(dagSerialized), null, masterAddress(client.getCluster())
-        );
+                client, JetSubmitLightJobCodec.encodeRequest(dagSerialized), null, masterUuid);
 
         ClientInvocationFuture future = invocation.invoke();
         return new ClientLightJobProxy(future);
@@ -84,7 +84,7 @@ public class JetClientInstanceImpl extends AbstractJetInstance {
             List<Long> jobs = JetGetJobIdsCodec.decodeResponse(resp);
             return toList(jobs, jobId -> new ClientJobProxy(this, jobId));
         });
-        }
+    }
 
     /**
      * Returns a list of jobs and a summary of their details.

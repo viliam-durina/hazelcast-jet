@@ -234,7 +234,7 @@ public class TopologyChangeTest extends JetTestSupport {
             } catch (Exception e) {
                 assertContains(e.getMessage(), TopologyChangedException.class.getName());
                 assertContains(e.getMessage(), "[127.0.0.1]:5703=" + MemberLeftException.class.getName());
-    }
+            }
         }
     }
 

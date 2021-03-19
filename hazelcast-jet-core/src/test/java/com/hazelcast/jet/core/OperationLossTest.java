@@ -68,7 +68,7 @@ public class OperationLossTest extends SimpleTestInClusterSupport {
         TestProcessors.reset(1);
         for (JetInstance instance : instances()) {
             PacketFiltersUtil.resetPacketFiltersFrom(instance.getHazelcastInstance());
-    }
+        }
     }
 
     @Test

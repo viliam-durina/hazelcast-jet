@@ -249,9 +249,9 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
         try {
             executeAndPeel(instance().newJob(dag));
         } catch (Throwable caught) {
-        // Then
+            // Then
             assertExceptionInCauses(MOCK_ERROR, caught);
-    }
+        }
     }
 
     @Test
@@ -403,7 +403,7 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
 
         // When
         Job job = instance().newJob(dag);
-            NoOutputSourceP.executionStarted.await();
+        NoOutputSourceP.executionStarted.await();
         cancelAndJoin(job);
         assertTrueEventually(() -> {
             assertJobFailed(job, new CancellationException());
@@ -597,9 +597,9 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
         instance.newJob(dag).join();
         Collection<DistributedObject> objects = instance.getHazelcastInstance().getDistributedObjects();
         long snapshotMaps = objects.stream()
-                .filter(obj -> obj instanceof IMap)
-                .filter(obj -> obj.getName().contains("snapshots.data"))
-                .count();
+                                   .filter(obj -> obj instanceof IMap)
+                                   .filter(obj -> obj.getName().contains("snapshots.data"))
+                                   .count();
 
         assertEquals(0, snapshotMaps);
     }
@@ -767,7 +767,7 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
                 @Override
                 public Collection<? extends Processor> get(int count) {
                     throw new UnsupportedOperationException("should not get here");
-}
+                }
 
                 private void writeObject(java.io.ObjectOutputStream stream) throws Exception {
                     // simulate serialization failure

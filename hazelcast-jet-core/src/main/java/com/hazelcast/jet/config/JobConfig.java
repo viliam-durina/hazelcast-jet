@@ -348,7 +348,7 @@ public class JobConfig implements IdentifiedDataSerializable {
     public JobConfig addJar(@Nonnull File file) {
         ensureIsFile(file);
         return addJar(fileToUrl(file));
-        }
+    }
 
     /**
      * Adds a JAR whose contents will be accessible to all the code attached to the
@@ -370,7 +370,7 @@ public class JobConfig implements IdentifiedDataSerializable {
     @Nonnull
     public JobConfig addJar(@Nonnull String path) {
         return addJar(new File(path));
-        }
+    }
 
     /**
      * Adds a ZIP file with JARs whose contents will be accessible to all the code
@@ -466,7 +466,7 @@ public class JobConfig implements IdentifiedDataSerializable {
     @Nonnull
     public JobConfig addClasspathResource(@Nonnull URL url) {
         return addClasspathResource(url, filenamePart(url));
-        }
+    }
 
     /**
      * Adds a resource that will be available on the Jet job's classpath. All the
@@ -504,7 +504,7 @@ public class JobConfig implements IdentifiedDataSerializable {
     public JobConfig addClasspathResource(@Nonnull File file) {
         ensureIsFile(file);
         return addClasspathResource(fileToUrl(file), file.getName());
-        }
+    }
 
     /**
      * Adds a file that will be available as a resource on the Jet job's classpath.
@@ -1179,7 +1179,7 @@ public class JobConfig implements IdentifiedDataSerializable {
                 && Objects.equals(serializerConfigs, jobConfig.serializerConfigs)
                 && Objects.equals(classLoaderFactory, jobConfig.classLoaderFactory)
                 && Objects.equals(initialSnapshotName, jobConfig.initialSnapshotName);
-        }
+    }
 
     @Override
     public int hashCode() {
@@ -1196,6 +1196,6 @@ public class JobConfig implements IdentifiedDataSerializable {
                 ", storeMetricsAfterJobCompletion=" + storeMetricsAfterJobCompletion +
                 ", resourceConfigs=" + resourceConfigs + ", serializerConfigs=" + serializerConfigs +
                 ", classLoaderFactory=" + classLoaderFactory + ", initialSnapshotName=" + initialSnapshotName + "}";
-}
+    }
 
 }

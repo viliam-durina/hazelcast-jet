@@ -151,8 +151,8 @@ public class JobRepository {
      * Prefix for internal IMaps which store snapshot data. Snapshot data for
      * one snapshot is stored in either of the following two maps:
      * <ul>
-     *     <li>{@code _jet.snapshot.<jobId>.0}
-     *     <li>{@code _jet.snapshot.<jobId>.1}
+     *      <li>{@code _jet.snapshot.<jobId>.0}
+     *      <li>{@code _jet.snapshot.<jobId>.1}
      * </ul>
      * Which one of these is determined in {@link JobExecutionRecord}.
      */
@@ -212,15 +212,15 @@ public class JobRepository {
                     case CLASSPATH_RESOURCE:
                     case CLASS:
                         try (InputStream in = rc.getUrl().openStream()) {
-                    readStreamAndPutCompressedToMap(rc.getId(), tmpMap, in);
-                }
+                            readStreamAndPutCompressedToMap(rc.getId(), tmpMap, in);
+                        }
                         break;
                     case FILE:
                         try (InputStream in = rc.getUrl().openStream();
                              IMapOutputStream os = new IMapOutputStream(jobFileStorage.get(), fileKeyName(rc.getId()))
                         ) {
                             packStreamIntoZip(in, os, requireNonNull(fileNameFromUrl(rc.getUrl())));
-            }
+                        }
                         break;
                     case DIRECTORY:
                         Path baseDir = validateAndGetDirectoryPath(rc);
@@ -264,7 +264,7 @@ public class JobRepository {
     }
 
     public long newJobId() {
-       return idGenerator.newId();
+        return idGenerator.newId();
     }
 
     @SuppressFBWarnings(value = "RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE",
@@ -298,14 +298,14 @@ public class JobRepository {
      */
     private void loadJarFromInputStream(Map<String, byte[]> map, InputStream is) throws IOException {
         JarInputStream jis = new JarInputStream(is);
-            JarEntry jarEntry;
-            while ((jarEntry = jis.getNextJarEntry()) != null) {
-                if (jarEntry.isDirectory()) {
-                    continue;
-                }
-                readStreamAndPutCompressedToMap(jarEntry.getName(), map, jis);
+        JarEntry jarEntry;
+        while ((jarEntry = jis.getNextJarEntry()) != null) {
+            if (jarEntry.isDirectory()) {
+                continue;
             }
+            readStreamAndPutCompressedToMap(jarEntry.getName(), map, jis);
         }
+    }
 
     private void readStreamAndPutCompressedToMap(
             String resourceName, Map<String, byte[]> map, InputStream in
@@ -361,7 +361,7 @@ public class JobRepository {
     /**
      * Puts a JobResult for the given job and deletes the JobRecord.
      *
-     * @throws JobNotFoundException if the JobRecord is not found
+     * @throws JobNotFoundException  if the JobRecord is not found
      * @throws IllegalStateException if the JobResult is already present
      */
     void completeJob(
@@ -381,7 +381,7 @@ public class JobRepository {
                 List<RawJobMetrics> prevMetrics = jobMetrics.put(jobId, terminalMetrics);
                 if (prevMetrics != null) {
                     logger.warning("Overwriting job metrics for job " + jobResult);
-        }
+                }
             } catch (Exception e) {
                 logger.warning("Storing the job metrics failed, ignoring: " + e, e);
             }
@@ -417,7 +417,7 @@ public class JobRepository {
             if (t != null) {
                 logger.warning("Failed to remove " + v.getClass().getSimpleName() + " for job "
                             + idToString(jobId) + ", ignoring", t);
-    }
+            }
         };
         jobExecutionRecords.removeAsync(jobId).whenComplete(callback);
         jobRecords.removeAsync(jobId).whenComplete(callback);
@@ -459,35 +459,35 @@ public class JobRepository {
 
     private void deleteMap(Set<Long> activeJobs, DistributedObject map) {
         long id = jobIdFromPrefixedName(map.getName(), RESOURCES_MAP_NAME_PREFIX);
-                if (activeJobs.contains(id)) {
-                    // job is still active, do nothing
+        if (activeJobs.contains(id)) {
+            // job is still active, do nothing
             return;
-                }
-                if (jobResults.containsKey(id)) {
-                    // if job is finished, we can safely delete the map
-                    logFine(logger, "Deleting job resource map '%s' because job is already finished", map.getName());
-                    map.destroy();
-                } else {
-                    // Job might be in the process of uploading resources, check how long the map has been there.
-                    // If we happen to recreate a just-deleted map, it will be destroyed again after
-                    // resourcesExpirationMillis.
+        }
+        if (jobResults.containsKey(id)) {
+            // if job is finished, we can safely delete the map
+            logFine(logger, "Deleting job resource map '%s' because job is already finished", map.getName());
+            map.destroy();
+        } else {
+            // Job might be in the process of uploading resources, check how long the map has been there.
+            // If we happen to recreate a just-deleted map, it will be destroyed again after
+            // resourcesExpirationMillis.
             @SuppressWarnings("rawtypes")
-                    IMap resourceMap = (IMap) map;
-                    long creationTime = resourceMap.getLocalMapStats().getCreationTime();
-                    if (isResourceMapExpired(creationTime)) {
-                        logger.fine("Deleting job resource map " + map.getName() + " because the map " +
-                                "was created long ago and job record or result still doesn't exist");
-                        resourceMap.destroy();
-                    }
-                }
+            IMap resourceMap = (IMap) map;
+            long creationTime = resourceMap.getLocalMapStats().getCreationTime();
+            if (isResourceMapExpired(creationTime)) {
+                logger.fine("Deleting job resource map " + map.getName() + " because the map " +
+                        "was created long ago and job record or result still doesn't exist");
+                resourceMap.destroy();
             }
+        }
+    }
 
     private void cleanupJobResults(NodeEngine nodeEngine) {
         int maxNoResults = Math.max(1, nodeEngine.getProperties().getInteger(JetProperties.JOB_RESULTS_MAX_SIZE));
         // delete oldest job results
         if (jobResults.size() > Util.addClamped(maxNoResults, maxNoResults / MAX_NO_RESULTS_OVERHEAD)) {
             jobResults.values().stream().sorted(comparing(JobResult::getCompletionTime).reversed())
-                      .skip(maxNoResults)
+                    .skip(maxNoResults)
                     .map(JobResult::getJobId)
                     .collect(Collectors.toList())
                     .forEach(id -> {
@@ -533,11 +533,11 @@ public class JobRepository {
     }
 
     public JobRecord getJobRecord(long jobId) {
-       return jobRecords.get(jobId);
+        return jobRecords.get(jobId);
     }
 
     public JobExecutionRecord getJobExecutionRecord(long jobId) {
-       return jobExecutionRecords.get(jobId);
+        return jobExecutionRecords.get(jobId);
     }
 
     /**
@@ -563,7 +563,7 @@ public class JobRepository {
 
     List<JobResult> getJobResults(String name) {
         return jobResults.values(new FilterJobResultByNamePredicate(name)).stream()
-                  .sorted(comparing(JobResult::getCreationTime).reversed()).collect(toList());
+                         .sorted(comparing(JobResult::getCreationTime).reversed()).collect(toList());
     }
 
     /**
@@ -630,15 +630,15 @@ public class JobRepository {
 
     void cacheValidationRecord(@Nonnull String snapshotName, @Nonnull SnapshotValidationRecord validationRecord) {
         try {
-        exportedSnapshotDetailsCache.set(snapshotName, validationRecord);
+            exportedSnapshotDetailsCache.set(snapshotName, validationRecord);
         } catch (Exception e) {
             logger.warning("Snapshot name: '" + snapshotName + "', failed to store validation record to cache: " + e, e);
-    }
+        }
     }
 
     public static final class UpdateJobExecutionRecordEntryProcessor implements
             EntryProcessor<Long, JobExecutionRecord, Object>,
-                    IdentifiedDataSerializable {
+            IdentifiedDataSerializable {
 
         private long jobId;
         @SuppressFBWarnings(value = "SE_BAD_FIELD",

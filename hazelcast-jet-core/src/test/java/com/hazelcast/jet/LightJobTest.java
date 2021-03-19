@@ -16,7 +16,7 @@
 
 package com.hazelcast.jet;
 
-import com.hazelcast.core.IList;
+import com.hazelcast.collection.IList;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.JetTestSupport;
 import com.hazelcast.jet.core.TestProcessors.ListSource;

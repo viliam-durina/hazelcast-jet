@@ -395,7 +395,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     ) {
         if (edge.routingPolicy() == RoutingPolicy.ISOLATED && !edge.isLocal()) {
             throw new IllegalArgumentException("Isolated edges must be local: " + edge);
-            }
+        }
 
         int totalPartitionCount = nodeEngine.getPartitionService().getPartitionCount();
         int[][] partitionsPerProcessor = getLocalPartitionDistribution(edge, edge.destVertex().localParallelism());
@@ -408,7 +408,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         );
         if (edge.isLocal()) {
             return localCollector;
-            }
+        }
 
         OutboundCollector[] remoteCollectors = createRemoteOutboundCollectors(
                 edge,
@@ -425,7 +425,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         collectors[0] = localCollector;
         System.arraycopy(remoteCollectors, 0, collectors, 1, collectors.length - 1);
         return compositeCollector(collectors, edge, totalPartitionCount, false);
-        }
+    }
 
     private OutboundCollector createLocalOutboundCollector(
             EdgeDef edge,
@@ -463,7 +463,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                     edgeId -> {
                         int queueCount = upstreamParallelism + (!edge.isLocal() ? numRemoteMembers : 0);
                         return createConveyorArray(downstreamParallelism, queueCount, queueSize);
-    }
+                    }
             );
 
             OutboundCollector[] localCollectors = new OutboundCollector[downstreamParallelism];
@@ -584,12 +584,12 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         if (!edge.routingPolicy().equals(RoutingPolicy.PARTITIONED)) {
             // the edge is not partitioned, use `null` for each processor
             return new int[downstreamParallelism][];
-    }
+        }
 
         if (edge.isLocal() || nodeEngine.getThisAddress().equals(edge.getDistributedTo())) {
             // the edge is local-partitioned or it is distributed to one member and this member is the target
             return ptionArrgmt.assignPartitionsToProcessors(downstreamParallelism, false);
-            }
+        }
 
         if (edge.getDistributedTo().equals(DISTRIBUTE_TO_ALL)) {
             // the edge is distributed to all members, every member handles a subset of the partitions
@@ -601,7 +601,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         int[][] res = new int[downstreamParallelism][];
         Arrays.fill(res, new int[0]);
         return res;
-        }
+    }
 
     private void createIfAbsentReceiverTasklet(EdgeDef edge,
                                                String jobPrefix,
@@ -630,7 +630,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                                    nodeEngine.getLoggingService(), addr, edge.destOrdinal(), edge.destVertex().name(),
                                    memberConnections.get(addr), jobPrefix);
                            addrToTasklet.put(addr, receiverTasklet);
-                           }
+                       }
                        return addrToTasklet;
                    });
     }
