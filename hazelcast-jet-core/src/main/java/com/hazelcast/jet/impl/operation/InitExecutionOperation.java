@@ -23,6 +23,7 @@ import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlan;
 import com.hazelcast.jet.impl.execution.init.JetInitDataSerializerHook;
+import com.hazelcast.jet.impl.util.LoggingUtil;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
@@ -31,6 +32,7 @@ import com.hazelcast.spi.impl.operationservice.ExceptionAction;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static com.hazelcast.jet.impl.execution.init.CustomClassLoadedObject.deserializeWithCustomClassLoader;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.isRestartableException;
@@ -42,7 +44,7 @@ import static com.hazelcast.spi.impl.operationservice.ExceptionAction.THROW_EXCE
  * After it is successfully handled on all members, {@link
  * StartExecutionOperation} is sent.
  */
-public class InitExecutionOperation extends AbstractJobOperation {
+public class InitExecutionOperation extends AsyncJobOperation {
 
     private long executionId;
     private int coordinatorMemberListVersion;
@@ -64,16 +66,21 @@ public class InitExecutionOperation extends AbstractJobOperation {
     }
 
     @Override
-    public void run() {
+    protected CompletableFuture<Void> doRun() {
         ILogger logger = getLogger();
         JetService service = getService();
-
         Address caller = getCallerAddress();
-        logger.fine("Initializing execution plan for " + jobIdAndExecutionId(jobId(), executionId) + " from " + caller);
+        LoggingUtil.logFine(logger, "Initializing execution plan for %s from %s", jobIdAndExecutionId(jobId(), executionId), caller);
 
         ExecutionPlan plan = deserializePlan(serializedPlan);
-        service.getJobExecutionService().initExecution(jobId(), executionId, caller,
-                coordinatorMemberListVersion, participants, plan);
+        if (isLightJob) {
+            return service.getJobExecutionService().runLightJob(jobId(), executionId, caller,
+                    coordinatorMemberListVersion, participants, plan);
+        } else {
+            service.getJobExecutionService().initExecution(jobId(), executionId, caller,
+                    coordinatorMemberListVersion, participants, plan);
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
     @Override

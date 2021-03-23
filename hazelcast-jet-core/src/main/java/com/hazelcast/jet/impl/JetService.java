@@ -331,4 +331,8 @@ public class JetService implements ManagedService, MembershipAwareService, LiveO
     JetSqlCoreBackend getSqlCoreBackend() {
         return sqlCoreBackend;
     }
+
+    public TaskletExecutionService getTaskletExecutionService() {
+        return taskletExecutionService;
+    }
 }

@@ -441,7 +441,7 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
         executionContext.terminateExecution(null);
 
         // When
-        CompletableFuture<Void> future = executionContext.beginExecution();
+        CompletableFuture<Void> future = executionContext.beginExecution(jetService.getTaskletExecutionService());
 
         // Then
         expectedException.expect(CancellationException.class);

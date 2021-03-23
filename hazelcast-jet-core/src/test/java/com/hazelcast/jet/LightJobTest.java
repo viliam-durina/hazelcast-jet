@@ -21,6 +21,7 @@ import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.JetTestSupport;
 import com.hazelcast.jet.core.TestProcessors.ListSource;
 import com.hazelcast.jet.core.Vertex;
+import com.hazelcast.jet.core.processor.Processors;
 import com.hazelcast.jet.core.processor.SinkProcessors;
 import com.hazelcast.test.HazelcastSerialClassRunner;
 import org.junit.Before;
@@ -29,6 +30,7 @@ import org.junit.runner.RunWith;
 
 import static com.hazelcast.jet.core.Edge.between;
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(HazelcastSerialClassRunner.class)
@@ -60,5 +62,25 @@ public class LightJobTest extends JetTestSupport {
         submittingInstance.newLightJob(dag).join();
         IList<Integer> result = inst.getList("sink");
         assertEquals(asList(1, 2, 3), result);
+    }
+
+    @Test
+    public void benchmark() {
+        int warmUpIterations = 100;
+        int realIterations = 200;
+        DAG dag = new DAG();
+        dag.newVertex("v", Processors.noopP());
+        JetInstance client = createJetClient();
+        logger.info("will submit " + warmUpIterations + " jobs");
+        for (int i = 0; i < warmUpIterations; i++) {
+            client.newJob(dag).join();
+        }
+        logger.info("warmup jobs done, starting benchmark");
+        long start = System.nanoTime();
+        for (int i = 0; i < realIterations; i++) {
+            client.newJob(dag).join();
+        }
+        long elapsedMs = NANOSECONDS.toMillis(System.nanoTime() - start);
+        System.out.println(realIterations + " jobs run in " + (elapsedMs / realIterations) + " ms/job");
     }
 }

@@ -70,6 +70,8 @@ import static java.util.stream.Collectors.toSet;
  */
 public class JobExecutionService implements DynamicMetricsProvider {
 
+    private final Object mutex = new Object();
+
     private final NodeEngineImpl nodeEngine;
     private final ILogger logger;
     private final TaskletExecutionService taskletExecutionService;
@@ -139,8 +141,10 @@ public class JobExecutionService implements DynamicMetricsProvider {
         return ctx != null ? ctx.senderMap() : null;
     }
 
-    public synchronized void shutdown() {
-        cancelAllExecutions("Node is shutting down", HazelcastInstanceNotActiveException::new);
+    public void shutdown() {
+        synchronized (mutex) {
+            cancelAllExecutions("Node is shutting down", HazelcastInstanceNotActiveException::new);
+        }
     }
 
     public void reset() {
@@ -160,7 +164,7 @@ public class JobExecutionService implements DynamicMetricsProvider {
     }
 
     /**
-     * Cancels executions that contain the left address as the coordinator or a
+     * Cancels executions that contain the leaving address as the coordinator or a
      * job participant
      */
     void onMemberRemoved(Address address) {
@@ -191,6 +195,37 @@ public class JobExecutionService implements DynamicMetricsProvider {
         }
     }
 
+    public CompletableFuture<Void> runLightJob(
+            long jobId,
+            long executionId,
+            Address coordinator,
+            int coordinatorMemberListVersion,
+            Set<MemberInfo> participants,
+            ExecutionPlan plan
+    ) {
+        assert executionId == jobId : "executionId(" + idToString(executionId) + ") != jobId(" + idToString(jobId) + ")";
+        verifyClusterInformation(jobId, executionId, coordinator, coordinatorMemberListVersion, participants);
+        failIfNotRunning();
+
+        ExecutionContext execCtx;
+        synchronized (mutex) {
+            addExecutionContextJobId(jobId, executionId, coordinator);
+            execCtx = executionContexts.computeIfAbsent(executionId,
+                    x -> new ExecutionContext(nodeEngine, jobId, executionId, true));
+        }
+
+        Set<Address> addresses = participants.stream().map(MemberInfo::getAddress).collect(toSet());
+        ClassLoader jobCl = getClassLoader(plan.getJobConfig(), jobId);
+        doWithClassLoader(jobCl, () -> execCtx.initialize(coordinator, addresses, plan));
+
+        // initial log entry with all of jobId, jobName, executionId
+        logger.info("Execution plan for light job ID=" + idToString(jobId)
+                + ", jobName=" + (execCtx.jobName() != null ? '\'' + execCtx.jobName() + '\'' : "null")
+                + ", executionId=" + idToString(executionId) + " initialized, will start the job");
+
+        return beginExecution(coordinator, jobId, executionId);
+    }
+
     /**
      * Initiates the given execution if the local node accepts the coordinator
      * as its master, and has an up-to-date member list information.
@@ -206,13 +241,35 @@ public class JobExecutionService implements DynamicMetricsProvider {
      *     init execution is retried.
      * </li></ul>
      */
-    public synchronized void initExecution(
+    public void initExecution(
             long jobId, long executionId, Address coordinator, int coordinatorMemberListVersion,
             Set<MemberInfo> participants, ExecutionPlan plan
     ) {
+        assertIsMaster(jobId, executionId, coordinator);
         verifyClusterInformation(jobId, executionId, coordinator, coordinatorMemberListVersion, participants);
         failIfNotRunning();
 
+        ExecutionContext execCtx;
+        synchronized (mutex) {
+            addExecutionContextJobId(jobId, executionId, coordinator);
+            execCtx = new ExecutionContext(nodeEngine, jobId, executionId, false);
+            ExecutionContext oldContext = executionContexts.put(executionId, execCtx);
+            if (oldContext != null) {
+                throw new RuntimeException("Duplicate ExecutionContext for execution " + Util.idToString(executionId));
+            }
+        }
+
+        Set<Address> addresses = participants.stream().map(MemberInfo::getAddress).collect(toSet());
+        ClassLoader jobCl = getClassLoader(plan.getJobConfig(), jobId);
+        doWithClassLoader(jobCl, () -> execCtx.initialize(coordinator, addresses, plan));
+
+        // initial log entry with all of jobId, jobName, executionId
+        logger.info("Execution plan for jobId=" + idToString(jobId)
+                + ", jobName=" + (execCtx.jobName() != null ? '\'' + execCtx.jobName() + '\'' : "null")
+                + ", executionId=" + idToString(executionId) + " initialized");
+    }
+
+    private void addExecutionContextJobId(long jobId, long executionId, Address coordinator) {
         if (!executionContextJobIds.add(jobId)) {
             ExecutionContext current = executionContexts.get(executionId);
             if (current != null) {
@@ -222,36 +279,21 @@ public class JobExecutionService implements DynamicMetricsProvider {
             }
 
             // search contexts for one with different executionId, but same jobId
-            executionContexts.values().stream()
-                             .filter(e -> e.jobId() == jobId)
-                             .forEach(e -> logger.fine(String.format(
-                                     "Execution context for job %s for coordinator %s already exists"
-                                             + " with local execution %s for coordinator %s",
-                                     idToString(jobId), coordinator, idToString(e.executionId()),
-                                     e.coordinator())));
+            if (logger.isFineEnabled()) {
+                executionContexts.values().stream()
+                                 .filter(e -> e.jobId() == jobId)
+                                 .forEach(e -> logger.fine(String.format(
+                                         "Execution context for job %s for coordinator %s already exists"
+                                                 + " with local execution %s for coordinator %s",
+                                         idToString(jobId), coordinator, idToString(e.executionId()),
+                                         e.coordinator())));
+            }
 
             throw new RetryableHazelcastException();
         }
-
-        Set<Address> addresses = participants.stream().map(MemberInfo::getAddress).collect(toSet());
-        ExecutionContext execCtx = new ExecutionContext(nodeEngine, taskletExecutionService,
-                jobId, executionId, coordinator, addresses);
-        try {
-            ClassLoader jobCl = getClassLoader(plan.getJobConfig(), jobId);
-            doWithClassLoader(jobCl, () -> execCtx.initialize(plan));
-        } finally {
-            ExecutionContext oldContext = executionContexts.put(executionId, execCtx);
-            assert oldContext == null : "Duplicate ExecutionContext for execution " + Util.idToString(executionId);
-        }
-
-        // initial log entry with all of jobId, jobName, executionId
-        logger.info("Execution plan for jobId=" + idToString(jobId)
-                + ", jobName=" + (execCtx.jobName() != null ? '\'' + execCtx.jobName() + '\'' : "null")
-                + ", executionId=" + idToString(executionId) + " initialized");
     }
 
-    private void verifyClusterInformation(long jobId, long executionId, Address coordinator,
-                                          int coordinatorMemberListVersion, Set<MemberInfo> participants) {
+    private void assertIsMaster(long jobId, long executionId, Address coordinator) {
         Address masterAddress = nodeEngine.getMasterAddress();
         if (!coordinator.equals(masterAddress)) {
             failIfNotRunning();
@@ -260,7 +302,11 @@ public class JobExecutionService implements DynamicMetricsProvider {
                     "Coordinator %s cannot initialize %s. Reason: it is not the master, the master is %s",
                     coordinator, jobIdAndExecutionId(jobId, executionId), masterAddress));
         }
+    }
 
+    private void verifyClusterInformation(long jobId, long executionId, Address coordinator,
+                                          int coordinatorMemberListVersion, Set<MemberInfo> participants) {
+        Address masterAddress = nodeEngine.getMasterAddress();
         ClusterServiceImpl clusterService = (ClusterServiceImpl) nodeEngine.getClusterService();
         MembershipManager membershipManager = clusterService.getMembershipManager();
         int localMemberListVersion = membershipManager.getMemberListVersion();
@@ -368,7 +414,7 @@ public class JobExecutionService implements DynamicMetricsProvider {
         ExecutionContext execCtx = assertExecutionContext(coordinator, jobId, executionId, "ExecuteJobOperation");
         logger.info("Start execution of " + execCtx.jobNameAndExecutionId() + " from coordinator " + coordinator);
         executionStarted.inc();
-        return execCtx.beginExecution()
+        return execCtx.beginExecution(taskletExecutionService)
               .whenComplete(withTryCatch(logger, (i, e) -> {
                   completeExecution(executionId, e);
                   if (e instanceof CancellationException) {

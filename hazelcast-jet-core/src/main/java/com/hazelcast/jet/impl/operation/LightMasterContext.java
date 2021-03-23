@@ -104,52 +104,15 @@ public class LightMasterContext {
                         nodeEngine.getSerializationService().toData(plan), true);
         vertices = new HashSet<>();
         dag.iterator().forEachRemaining(vertices::add);
-        invokeOnParticipants(operationCtor, this::onInitStepCompleted, null, false);
+        invokeOnParticipants(operationCtor,
+                responses -> finalizeJob(firstError(responses)),
+                error -> cancelInvocations(),
+                false);
         return jobCompletionFuture;
     }
 
-    // Called as callback when all InitOperation invocations are done
-    private void onInitStepCompleted(Collection<Object> responses) {
-        Throwable error = firstError(responses);
-        if (error == null) {
-            invokeStartExecution();
-        } else {
-            invokeCompleteExecution(error);
-        }
-    }
-
-    // If a participant leaves or the execution fails in a participant locally, executions are cancelled
-    // on the remaining participants and the callback is completed after all invocations return.
-    private void invokeStartExecution() {
-        logFine(logger, "Executing %s", jobIdString);
-
-        Function<ExecutionPlan, Operation> operationCtor = plan -> new StartExecutionOperation(jobId, jobId);
-        invokeOnParticipants(operationCtor, this::onExecuteStepCompleted, error -> cancelInvocations(), false);
-    }
-
-    // Called as callback when all ExecuteOperation invocations are done
-    private void onExecuteStepCompleted(Collection<Object> responses) {
-        invokeCompleteExecution(firstError(responses));
-    }
-
-    private void invokeCompleteExecution(Throwable error) {
-        finalizeJob(error);
-    }
-
     private void finalizeJob(@Nullable Throwable failure) {
-        completeVertices(failure);
-        setFinalResult(failure);
-    }
-
-    private void setFinalResult(Throwable failure) {
-        if (failure == null) {
-            jobCompletionFuture.complete(null);
-        } else {
-            jobCompletionFuture.completeExceptionally(failure);
-        }
-    }
-
-    private void completeVertices(@Nullable Throwable failure) {
+        // close ProcessorMetaSuppliers
         if (vertices != null) {
             for (Vertex vertex : vertices) {
                 try {
@@ -159,6 +122,12 @@ public class LightMasterContext {
                             + " encountered an exception in ProcessorMetaSupplier.complete(), ignoring it", e);
                 }
             }
+        }
+
+        if (failure == null) {
+            jobCompletionFuture.complete(null);
+        } else {
+            jobCompletionFuture.completeExceptionally(failure);
         }
     }
 

@@ -22,13 +22,16 @@ import com.hazelcast.internal.metrics.MetricDescriptor;
 import com.hazelcast.internal.metrics.MetricsCollectionContext;
 import com.hazelcast.internal.metrics.ProbeLevel;
 import com.hazelcast.internal.metrics.ProbeUnit;
+import com.hazelcast.internal.nio.BufferObjectDataInput;
 import com.hazelcast.internal.nio.IOUtil;
 import com.hazelcast.internal.serialization.InternalSerializationService;
+import com.hazelcast.internal.util.concurrent.MPSCQueue;
 import com.hazelcast.internal.util.counters.Counter;
 import com.hazelcast.internal.util.counters.MwCounter;
 import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.core.ProcessorSupplier;
 import com.hazelcast.jet.core.metrics.MetricTags;
+import com.hazelcast.jet.datamodel.Tuple3;
 import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.TerminationMode;
 import com.hazelcast.jet.impl.exception.JobTerminateRequestedException;
@@ -43,8 +46,11 @@ import com.hazelcast.spi.impl.NodeEngine;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -53,8 +59,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import static com.hazelcast.jet.Util.idToString;
 import static com.hazelcast.jet.core.metrics.MetricNames.EXECUTION_COMPLETION_TIME;
 import static com.hazelcast.jet.core.metrics.MetricNames.EXECUTION_START_TIME;
+import static com.hazelcast.jet.datamodel.Tuple3.tuple3;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 
@@ -67,8 +73,8 @@ public class ExecutionContext implements DynamicMetricsProvider {
 
     private final long jobId;
     private final long executionId;
-    private final Address coordinator;
-    private final Set<Address> participants;
+    private volatile Address coordinator; // TODO [viliam] needs volatile?
+    private volatile Set<Address> participants; // TODO [viliam] needs volatile?
     private final Object executionLock = new Object();
     private final ILogger logger;
     private final Counter startTime = MwCounter.newMwCounter(-1);
@@ -82,10 +88,14 @@ public class ExecutionContext implements DynamicMetricsProvider {
     private String jobName;
 
     // dest vertex id --> dest ordinal --> sender addr --> receiver tasklet
-    private Map<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> receiverMap = emptyMap();
+    private Map<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> receiverMap;
+
+    private Map<Tuple3<Integer, Integer, Address>, Queue<BufferObjectDataInput>> receiverQueuesMap;
+    private final boolean isLightJob;
 
     // dest vertex id --> dest ordinal --> dest addr --> sender tasklet
-    private Map<Integer, Map<Integer, Map<Address, SenderTasklet>>> senderMap = emptyMap();
+    // TODO [viliam] Also use Tuple3<Integer, Integer, Address>?
+    private Map<Integer, Map<Integer, Map<Address, SenderTasklet>>> senderMap;
 
     private List<ProcessorSupplier> procSuppliers = emptyList();
 
@@ -98,7 +108,6 @@ public class ExecutionContext implements DynamicMetricsProvider {
     private final CompletableFuture<Void> cancellationFuture = new CompletableFuture<>();
 
     private final NodeEngine nodeEngine;
-    private final TaskletExecutionService taskletExecService;
     private SnapshotContext snapshotContext;
     private JobConfig jobConfig;
 
@@ -107,21 +116,25 @@ public class ExecutionContext implements DynamicMetricsProvider {
 
     private InternalSerializationService serializationService;
 
-    public ExecutionContext(NodeEngine nodeEngine, TaskletExecutionService taskletExecService,
-                            long jobId, long executionId, Address coordinator, Set<Address> participants) {
+    public ExecutionContext(NodeEngine nodeEngine, long jobId, long executionId, boolean isLightJob) {
         this.jobId = jobId;
         this.executionId = executionId;
-        this.coordinator = coordinator;
-        this.participants = participants;
-        this.taskletExecService = taskletExecService;
         this.nodeEngine = nodeEngine;
+        this.isLightJob = isLightJob;
 
         this.jobName = idToString(jobId);
 
         this.logger = nodeEngine.getLogger(getClass());
+
+        // The map is only concurrent for light jobs because they can receive packets before they are
+        // initialized. For regular jobs we use non-concurrent map for performance
+        receiverQueuesMap = isLightJob ? new ConcurrentHashMap<>() : new HashMap<>();
     }
 
-    public ExecutionContext initialize(ExecutionPlan plan) {
+    public ExecutionContext initialize(Address coordinator, Set<Address> participants, ExecutionPlan plan) {
+        this.coordinator = coordinator;
+        this.participants = participants;
+
         jobConfig = plan.getJobConfig();
         jobName = jobConfig.getName() == null ? jobName : jobConfig.getName();
 
@@ -139,6 +152,16 @@ public class ExecutionContext implements DynamicMetricsProvider {
         snapshotContext.initTaskletCount(plan.getProcessorTaskletCount(), plan.getStoreSnapshotTaskletCount(),
                 plan.getHigherPriorityVertexCount());
         receiverMap = unmodifiableMap(plan.getReceiverMap());
+        for (Entry<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> vertexIdEntry : plan.getReceiverMap().entrySet()) {
+            for (Entry<Integer, Map<Address, ReceiverTasklet>> ordinalEntry : vertexIdEntry.getValue().entrySet()) {
+                for (Entry<Address, ReceiverTasklet> addressEntry : ordinalEntry.getValue().entrySet()) {
+                    Tuple3<Integer, Integer, Address> key = tuple3(vertexIdEntry.getKey(), ordinalEntry.getKey(), addressEntry.getKey());
+                    Queue<BufferObjectDataInput> queue = receiverQueuesMap.computeIfAbsent(key, x -> new MPSCQueue<>(null));
+                    addressEntry.getValue().initIncomingQueue(queue);
+                }
+            }
+        }
+
         senderMap = unmodifiableMap(plan.getSenderMap());
         tasklets = plan.getTasklets();
 
@@ -154,7 +177,7 @@ public class ExecutionContext implements DynamicMetricsProvider {
      * future is completed immediately. The future returned can't be cancelled,
      * instead {@link #terminateExecution} should be used.
      */
-    public CompletableFuture<Void> beginExecution() {
+    public CompletableFuture<Void> beginExecution(TaskletExecutionService taskletExecService) {
         synchronized (executionLock) {
             if (executionFuture != null) {
                 // beginExecution was already called or execution was cancelled before it started.
@@ -281,10 +304,9 @@ public class ExecutionContext implements DynamicMetricsProvider {
     }
 
     public void handlePacket(int vertexId, int ordinal, Address sender, byte[] payload, int offset) {
-        receiverMap.get(vertexId)
-                   .get(ordinal)
-                   .get(sender)
-                   .receiveStreamPacket(payload, offset);
+        BufferObjectDataInput input = serializationService.createObjectDataInput(payload, offset);
+        receiverQueuesMap.get(tuple3(vertexId, ordinal, sender))
+                   .add(input);
     }
 
     public boolean hasParticipant(Address member) {
