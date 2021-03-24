@@ -219,11 +219,13 @@ public class JobExecutionService implements DynamicMetricsProvider {
         doWithClassLoader(jobCl, () -> execCtx.initialize(coordinator, addresses, plan));
 
         // initial log entry with all of jobId, jobName, executionId
-        logger.info("Execution plan for light job ID=" + idToString(jobId)
-                + ", jobName=" + (execCtx.jobName() != null ? '\'' + execCtx.jobName() + '\'' : "null")
-                + ", executionId=" + idToString(executionId) + " initialized, will start the job");
+        if (logger.isFineEnabled()) {
+            logger.fine("Execution plan for light job ID=" + idToString(jobId)
+                    + ", jobName=" + (execCtx.jobName() != null ? '\'' + execCtx.jobName() + '\'' : "null")
+                    + ", executionId=" + idToString(executionId) + " initialized, will start the job");
+        }
 
-        return beginExecution(coordinator, jobId, executionId);
+        return beginExecution0(execCtx);
     }
 
     /**
@@ -413,10 +415,14 @@ public class JobExecutionService implements DynamicMetricsProvider {
     public CompletableFuture<Void> beginExecution(Address coordinator, long jobId, long executionId) {
         ExecutionContext execCtx = assertExecutionContext(coordinator, jobId, executionId, "ExecuteJobOperation");
         logger.info("Start execution of " + execCtx.jobNameAndExecutionId() + " from coordinator " + coordinator);
+        return beginExecution0(execCtx);
+    }
+
+    public CompletableFuture<Void> beginExecution0(ExecutionContext execCtx) {
         executionStarted.inc();
         return execCtx.beginExecution(taskletExecutionService)
               .whenComplete(withTryCatch(logger, (i, e) -> {
-                  completeExecution(executionId, e);
+                  completeExecution(execCtx.executionId(), e);
                   if (e instanceof CancellationException) {
                       logger.fine("Execution of " + execCtx.jobNameAndExecutionId() + " was cancelled");
                   } else if (e != null) {

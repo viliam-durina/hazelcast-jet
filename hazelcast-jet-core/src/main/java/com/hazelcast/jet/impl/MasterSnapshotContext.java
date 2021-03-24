@@ -47,6 +47,7 @@ import static com.hazelcast.jet.impl.JobRepository.EXPORTED_SNAPSHOTS_PREFIX;
 import static com.hazelcast.jet.impl.JobRepository.exportedSnapshotMapName;
 import static com.hazelcast.jet.impl.JobRepository.snapshotDataMapName;
 import static com.hazelcast.jet.impl.util.LoggingUtil.logFine;
+import static com.hazelcast.jet.impl.util.Util.jobNameAndExecutionId;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
 /**
@@ -163,7 +164,8 @@ class MasterSnapshotContext {
                     : snapshotDataMapName(mc.jobId(), mc.jobExecutionRecord().ongoingDataMapIndex());
             mc.nodeEngine().getHazelcastInstance().getMap(finalMapName).clear();
             logFine(logger, "Starting snapshot %d for %s, flags: %s, writing to: %s",
-                    newSnapshotId, mc.jobIdString(), SnapshotFlags.toString(snapshotFlags), snapshotMapName);
+                    newSnapshotId, jobNameAndExecutionId(mc.jobName(), localExecutionId),
+                    SnapshotFlags.toString(snapshotFlags), snapshotMapName);
 
             Function<ExecutionPlan, Operation> factory = plan ->
                     new SnapshotPhase1Operation(mc.jobId(), localExecutionId, newSnapshotId, finalMapName, snapshotFlags);

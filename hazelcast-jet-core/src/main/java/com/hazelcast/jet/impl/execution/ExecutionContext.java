@@ -310,7 +310,7 @@ public class ExecutionContext implements DynamicMetricsProvider {
     }
 
     public boolean hasParticipant(Address member) {
-        return participants.contains(member);
+        return participants != null && participants.contains(member);
     }
 
     public long jobId() {

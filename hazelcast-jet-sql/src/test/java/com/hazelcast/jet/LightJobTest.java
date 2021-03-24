@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2019, Hazelcast, Inc. All Rights Reserved.
+ * Copyright (c) 2008-2021, Hazelcast, Inc. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,11 @@ import com.hazelcast.jet.core.TestProcessors.ListSource;
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.jet.core.processor.Processors;
 import com.hazelcast.jet.core.processor.SinkProcessors;
+import com.hazelcast.sql.SqlRow;
+import com.hazelcast.sql.SqlService;
 import com.hazelcast.test.HazelcastSerialClassRunner;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -38,8 +41,14 @@ public class LightJobTest extends JetTestSupport {
 
     private JetInstance inst;
 
+    @BeforeClass
+    public static void beforeClass() {
+        windowsTimerHack();
+    }
+
     @Before
     public void before() {
+        inst = createJetMember();
         inst = createJetMember();
     }
 
@@ -65,22 +74,57 @@ public class LightJobTest extends JetTestSupport {
     }
 
     @Test
-    public void benchmark() {
+    public void jetBench() {
         int warmUpIterations = 100;
         int realIterations = 200;
         DAG dag = new DAG();
         dag.newVertex("v", Processors.noopP());
-        JetInstance client = createJetClient();
         logger.info("will submit " + warmUpIterations + " jobs");
         for (int i = 0; i < warmUpIterations; i++) {
-            client.newJob(dag).join();
+            inst.newLightJob(dag).join();
         }
         logger.info("warmup jobs done, starting benchmark");
         long start = System.nanoTime();
         for (int i = 0; i < realIterations; i++) {
-            client.newJob(dag).join();
+            inst.newLightJob(dag).join();
         }
-        long elapsedMs = NANOSECONDS.toMillis(System.nanoTime() - start);
-        System.out.println(realIterations + " jobs run in " + (elapsedMs / realIterations) + " ms/job");
+        long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);
+        System.out.println(realIterations + " jobs run in " + (elapsedMicros / realIterations) + " us/job");
+    }
+
+    @Test
+    public void sqlBench() {
+        int warmUpIterations = 100;
+        int realIterations = 200;
+        SqlService sqlService = inst.getSql();
+        logger.info("will submit " + warmUpIterations + " jobs");
+        inst.getMap("m").put(1, 1);
+        int numRows = 0;
+        for (int i = 0; i < warmUpIterations; i++) {
+            for (SqlRow r : sqlService.execute("select * from m")) {
+                numRows++;
+            }
+        }
+        logger.info("warmup jobs done, starting benchmark");
+        long start = System.nanoTime();
+        for (int i = 0; i < realIterations; i++) {
+            for (SqlRow r : sqlService.execute("select * from m")) {
+                numRows++;
+            }
+        }
+        long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);
+        System.out.println(numRows);
+        System.out.println(realIterations + " queries run in " + (elapsedMicros / realIterations) + " us/job");
+    }
+
+    public static void windowsTimerHack() {
+        Thread t = new Thread(() -> {
+            try {
+                Thread.sleep(Long.MAX_VALUE);
+            } catch (InterruptedException e) { // a delicious interrupt, omm, omm
+            }
+        });
+        t.setDaemon(true);
+        t.start();
     }
 }
