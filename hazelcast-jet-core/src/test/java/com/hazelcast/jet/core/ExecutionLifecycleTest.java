@@ -427,7 +427,7 @@ public class ExecutionLifecycleTest extends SimpleTestInClusterSupport {
         JetService jetService = getJetService(instance());
         final Map<MemberInfo, ExecutionPlan> executionPlans =
                 ExecutionPlanBuilder.createExecutionPlans(nodeEngineImpl, membersView, dag, 1, 1,
-                        new JobConfig(), NO_SNAPSHOT);
+                        new JobConfig(), NO_SNAPSHOT, false);
         ExecutionPlan executionPlan = executionPlans.get(membersView.getMember(localAddress));
         long jobId = 0;
         long executionId = 1;

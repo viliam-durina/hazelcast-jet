@@ -31,7 +31,6 @@ import com.hazelcast.internal.util.counters.MwCounter;
 import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.core.ProcessorSupplier;
 import com.hazelcast.jet.core.metrics.MetricTags;
-import com.hazelcast.jet.datamodel.Tuple3;
 import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.TerminationMode;
 import com.hazelcast.jet.impl.exception.JobTerminateRequestedException;
@@ -44,12 +43,14 @@ import com.hazelcast.jet.impl.util.Util;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.spi.impl.NodeEngine;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -59,7 +60,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import static com.hazelcast.jet.Util.idToString;
 import static com.hazelcast.jet.core.metrics.MetricNames.EXECUTION_COMPLETION_TIME;
 import static com.hazelcast.jet.core.metrics.MetricNames.EXECUTION_START_TIME;
-import static com.hazelcast.jet.datamodel.Tuple3.tuple3;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
@@ -90,11 +90,11 @@ public class ExecutionContext implements DynamicMetricsProvider {
     // dest vertex id --> dest ordinal --> sender addr --> receiver tasklet
     private Map<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> receiverMap;
 
-    private Map<Tuple3<Integer, Integer, Address>, Queue<BufferObjectDataInput>> receiverQueuesMap;
+    private Map<SenderReceiverKey, Queue<BufferObjectDataInput>> receiverQueuesMap;
     private final boolean isLightJob;
 
     // dest vertex id --> dest ordinal --> dest addr --> sender tasklet
-    // TODO [viliam] Also use Tuple3<Integer, Integer, Address>?
+    // TODO [viliam] Also use SenderReceiverKey?
     private Map<Integer, Map<Integer, Map<Address, SenderTasklet>>> senderMap;
 
     private List<ProcessorSupplier> procSuppliers = emptyList();
@@ -128,6 +128,7 @@ public class ExecutionContext implements DynamicMetricsProvider {
 
         // The map is only concurrent for light jobs because they can receive packets before they are
         // initialized. For regular jobs we use non-concurrent map for performance
+        // TODO [viliam] convert to non-concurrent map after initialization
         receiverQueuesMap = isLightJob ? new ConcurrentHashMap<>() : new HashMap<>();
     }
 
@@ -155,7 +156,7 @@ public class ExecutionContext implements DynamicMetricsProvider {
         for (Entry<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> vertexIdEntry : plan.getReceiverMap().entrySet()) {
             for (Entry<Integer, Map<Address, ReceiverTasklet>> ordinalEntry : vertexIdEntry.getValue().entrySet()) {
                 for (Entry<Address, ReceiverTasklet> addressEntry : ordinalEntry.getValue().entrySet()) {
-                    Tuple3<Integer, Integer, Address> key = tuple3(vertexIdEntry.getKey(), ordinalEntry.getKey(), addressEntry.getKey());
+                    SenderReceiverKey key = new SenderReceiverKey(vertexIdEntry.getKey(), ordinalEntry.getKey(), addressEntry.getKey());
                     Queue<BufferObjectDataInput> queue = receiverQueuesMap.computeIfAbsent(key, x -> new MPSCQueue<>(null));
                     addressEntry.getValue().initIncomingQueue(queue);
                 }
@@ -305,7 +306,7 @@ public class ExecutionContext implements DynamicMetricsProvider {
 
     public void handlePacket(int vertexId, int ordinal, Address sender, byte[] payload, int offset) {
         BufferObjectDataInput input = serializationService.createObjectDataInput(payload, offset);
-        receiverQueuesMap.get(tuple3(vertexId, ordinal, sender))
+        receiverQueuesMap.get(new SenderReceiverKey(vertexId, ordinal, sender))
                    .add(input);
     }
 
@@ -372,5 +373,34 @@ public class ExecutionContext implements DynamicMetricsProvider {
 
     public CompletableFuture<Void> getExecutionFuture() {
         return executionFuture;
+    }
+
+    private static final class SenderReceiverKey {
+        private final int vertexId;
+        private final int ordinal;
+        private final Address address;
+
+        private SenderReceiverKey(int vertexId, int ordinal, @Nonnull Address address) {
+            this.vertexId = vertexId;
+            this.ordinal = ordinal;
+            this.address = address;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            SenderReceiverKey that = (SenderReceiverKey) o;
+            return vertexId == that.vertexId && ordinal == that.ordinal && address.equals(that.address);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(vertexId, ordinal, address);
+        }
     }
 }
