@@ -63,6 +63,10 @@ public class LightMasterContext {
         }
     };
 
+    private static final JobConfig LIGHT_JOB_CONFIG = new JobConfig()
+            .setMetricsEnabled(false)
+            .setAutoScaling(false);
+
     private final NodeEngine nodeEngine;
     private final DAG dag;
     private final long jobId;
@@ -85,18 +89,16 @@ public class LightMasterContext {
     }
 
     public CompletableFuture<Void> start() {
-        String dotRepresentation = dag.toDotString();
         MembersView membersView = getMembersView();
-        logFine(logger, "Start executing light %s, execution graph in DOT format:\n%s"
-                + "\nHINT: You can use graphviz or http://viz-js.com to visualize the printed graph.",
-                jobIdString, dotRepresentation);
-        logFine(logger, "Building execution plan for %s", jobIdString);
-        JobConfig config = new JobConfig()
-            .setMetricsEnabled(false)
-            .setAutoScaling(false);
+        if (logger.isFineEnabled()) {
+            String dotRepresentation = dag.toDotString();
+            logFine(logger, "Start executing light %s, execution graph in DOT format:\n%s"
+                            + "\nHINT: You can use graphviz or http://viz-js.com to visualize the printed graph.",
+                    jobIdString, dotRepresentation);
+            logFine(logger, "Building execution plan for %s", jobIdString);
+        }
 
-        executionPlanMap =
-                createExecutionPlans(nodeEngine, membersView, dag, jobId, jobId, config, 0);
+        executionPlanMap = createExecutionPlans(nodeEngine, membersView, dag, jobId, jobId, LIGHT_JOB_CONFIG, 0);
         logFine(logger, "Built execution plans for %s", jobIdString);
         Set<MemberInfo> participants = executionPlanMap.keySet();
         Function<ExecutionPlan, Operation> operationCtor = plan ->
