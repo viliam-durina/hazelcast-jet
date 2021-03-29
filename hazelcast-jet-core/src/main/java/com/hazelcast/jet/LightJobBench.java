@@ -25,54 +25,72 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class LightJobBench {
 
-    public static void main(String[] args) {
+    private static int warmUpIterations;
+    private static int measuredIterations;
 
+    private static JetInstance jetInst;
+
+    public static void main(String[] args) {
+        if (args.length != 3) {
+            System.err.println("Usage:");
+            System.err.println("  LightJobBench <jet|imdg> <warmUpIterations> <measuredIterations>");
+            System.exit(1);
+        }
+
+        boolean isJet = "jet".equalsIgnoreCase(args[0]);
+        warmUpIterations = Integer.parseInt(args[1]);
+        measuredIterations = Integer.parseInt(args[2]);
+
+        jetInst = Jet.newJetInstance();
+
+        if (isJet) {
+            jetBench();
+        } else {
+            sqlBench();
+        }
+
+        jetInst.shutdown();
     }
 
-    public void jetBench() throws Exception {
-        int warmUpIterations = 100;
-        int realIterations = 2000;
+    public static void jetBench() {
         DAG dag = new DAG();
         dag.newVertex("v", Processors.noopP());
         System.out.println("will submit " + warmUpIterations + " jobs");
         for (int i = 0; i < warmUpIterations; i++) {
-            inst.newLightJob(dag).join();
+            jetInst.newLightJob(dag).join();
         }
 //        for (int i = 20; i >= 0; i--) {
 //            System.out.println("attach profiler " + i);
 //            Thread.sleep(1000);
 //        }
-        logger.info("warmup jobs done, starting benchmark");
+        System.out.println("warmup jobs done, starting benchmark");
         long start = System.nanoTime();
-        for (int i = 0; i < realIterations; i++) {
-            inst.newLightJob(dag).join();
+        for (int i = 0; i < measuredIterations; i++) {
+            jetInst.newLightJob(dag).join();
         }
         long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);
-        System.out.println(realIterations + " jobs run in " + (elapsedMicros / realIterations) + " us/job");
+        System.out.println(measuredIterations + " jobs run in " + (elapsedMicros / measuredIterations) + " us/job");
     }
 
-    @Test
-    public void sqlBench() {
-        int warmUpIterations = 100;
-        int realIterations = 200;
-        SqlService sqlService = inst.getSql();
-        logger.info("will submit " + warmUpIterations + " jobs");
-        inst.getMap("m").put(1, 1);
+    public static void sqlBench() {
+        SqlService sqlService = jetInst.getSql();
+        System.out.println("will submit " + warmUpIterations + " jobs");
+        jetInst.getMap("m").put(1, 1);
         int numRows = 0;
         for (int i = 0; i < warmUpIterations; i++) {
             for (SqlRow r : sqlService.execute("select * from m")) {
                 numRows++;
             }
         }
-        logger.info("warmup jobs done, starting benchmark");
+        System.out.println("warmup jobs done, starting benchmark");
         long start = System.nanoTime();
-        for (int i = 0; i < realIterations; i++) {
+        for (int i = 0; i < measuredIterations; i++) {
             for (SqlRow r : sqlService.execute("select * from m")) {
                 numRows++;
             }
         }
         long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);
         System.out.println(numRows);
-        System.out.println(realIterations + " queries run in " + (elapsedMicros / realIterations) + " us/job");
+        System.out.println(measuredIterations + " queries run in " + (elapsedMicros / measuredIterations) + " us/job");
     }
 }
