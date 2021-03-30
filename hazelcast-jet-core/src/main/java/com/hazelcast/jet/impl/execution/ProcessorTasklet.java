@@ -34,6 +34,7 @@ import com.hazelcast.jet.core.Processor.Context;
 import com.hazelcast.jet.core.Watermark;
 import com.hazelcast.jet.core.metrics.MetricNames;
 import com.hazelcast.jet.core.metrics.MetricTags;
+import com.hazelcast.jet.impl.Timers;
 import com.hazelcast.jet.impl.metrics.MetricsContext;
 import com.hazelcast.jet.impl.processor.ProcessorWrapper;
 import com.hazelcast.jet.impl.util.ArrayDequeInbox;
@@ -390,12 +391,14 @@ public class ProcessorTasklet implements Tasklet {
             case CLOSE:
                 if (isCooperative()) {
                     if (closeFuture == null) {
+                        Timers.i().processorClose.start();
                         closeFuture = executionService.submit(this::closeProcessor);
                         progTracker.madeProgress();
                     }
                     if (!closeFuture.isDone()) {
                         return;
                     }
+                    Timers.i().processorClose.stop();
                     progTracker.madeProgress();
                 } else {
                     closeProcessor();

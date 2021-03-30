@@ -17,6 +17,7 @@
 package com.hazelcast.jet.impl;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -44,6 +45,7 @@ public class Timers {
     public final Timer lightMasterContext_serializeOnePlan = add("lightMasterContext_serializeOnePlan");
     public final Timer initResponseTime = add("initResponseTime");
     public final Timer init = add("init");
+    public final Timer processorClose = add("processorClose");
 
     private long globalStart = System.nanoTime();
 
@@ -62,6 +64,13 @@ public class Timers {
     }
 
     public void printAll() {
+        System.out.println("-- sorted by start");
+        allTimers.sort(Comparator.comparing(t -> t.totalTimeToStart));
+        for (Timer t : allTimers) {
+            t.print();
+        }
+        System.out.println("-- sorted by end");
+        allTimers.sort(Comparator.comparing(t -> t.totalTimeToEnd));
         for (Timer t : allTimers) {
             t.print();
         }
