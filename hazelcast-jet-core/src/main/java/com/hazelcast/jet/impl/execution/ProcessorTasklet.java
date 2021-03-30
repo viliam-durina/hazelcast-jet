@@ -45,6 +45,7 @@ import com.hazelcast.logging.Logger;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -157,7 +158,7 @@ public class ProcessorTasklet implements Tasklet {
             @Nonnull List<? extends InboundEdgeStream> instreams,
             @Nonnull List<? extends OutboundEdgeStream> outstreams,
             @Nonnull SnapshotContext ssContext,
-            @Nonnull OutboundCollector ssCollector,
+            @Nullable OutboundCollector ssCollector,
             boolean isSource
     ) {
         Preconditions.checkNotNull(processor, "processor");
@@ -201,13 +202,18 @@ public class ProcessorTasklet implements Tasklet {
                 : Logger.getLogger(getClass());
     }
 
-    private OutboxImpl createOutbox(@Nonnull OutboundCollector ssCollector) {
-        OutboundCollector[] collectors = new OutboundCollector[outstreams.length + 1];
+    private OutboxImpl createOutbox(@Nullable OutboundCollector ssCollector) {
+        OutboundCollector[] collectors;
+        if (ssCollector != null) {
+            collectors = new OutboundCollector[outstreams.length + 1];
+            collectors[outstreams.length] = ssCollector;
+        } else {
+            collectors = new OutboundCollector[outstreams.length];
+        }
         for (int i = 0; i < outstreams.length; i++) {
             collectors[i] = outstreams[i].getCollector();
         }
-        collectors[outstreams.length] = ssCollector;
-        return new OutboxImpl(collectors, true, progTracker,
+        return new OutboxImpl(collectors, ssCollector != null, progTracker,
                 serializationService, OUTBOX_BATCH_SIZE, emittedCounts);
     }
 

@@ -56,6 +56,7 @@ import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.spi.impl.NodeEngineImpl;
 
+import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -157,7 +158,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     public void initialize(NodeEngine nodeEngine,
                            long jobId,
                            long executionId,
-                           SnapshotContext snapshotContext,
+                           @Nonnull SnapshotContext snapshotContext,
                            ConcurrentHashMap<String, File> tempDirectories,
                            InternalSerializationService jobSerializationService) {
         this.nodeEngine = (NodeEngineImpl) nodeEngine;
@@ -173,20 +174,23 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         }
         for (VertexDef vertex : vertices) {
             Collection<? extends Processor> processors = createProcessors(vertex, vertex.localParallelism());
+            String jobPrefix = prefix(jobConfig.getName(), jobId, vertex.name());
 
             // create StoreSnapshotTasklet and the queues to it
-            @SuppressWarnings("unchecked")
-            QueuedPipe<Object>[] snapshotQueues = new QueuedPipe[vertex.localParallelism()];
-            Arrays.setAll(snapshotQueues, i -> new OneToOneConcurrentArrayQueue<>(SNAPSHOT_QUEUE_SIZE));
-            ConcurrentConveyor<Object> ssConveyor = ConcurrentConveyor.concurrentConveyor(null, snapshotQueues);
-            String jobPrefix = prefix(jobConfig.getName(), jobId, vertex.name());
-            ILogger storeSnapshotLogger = prefixedLogger(nodeEngine.getLogger(StoreSnapshotTasklet.class), jobPrefix);
-            StoreSnapshotTasklet ssTasklet = new StoreSnapshotTasklet(snapshotContext,
-                    ConcurrentInboundEdgeStream.create(ssConveyor, 0, 0, true, jobPrefix + "/ssFrom", null),
-                    new AsyncSnapshotWriterImpl(nodeEngine, snapshotContext, vertex.name(), memberIndex, memberCount,
-                            jobSerializationService),
-                    storeSnapshotLogger, vertex.name(), higherPriorityVertices.contains(vertex.vertexId()));
-            tasklets.add(ssTasklet);
+            ConcurrentConveyor<Object> ssConveyor = null;
+            if (snapshotContext.processingGuarantee() != ProcessingGuarantee.NONE) {
+                @SuppressWarnings("unchecked")
+                QueuedPipe<Object>[] snapshotQueues = new QueuedPipe[vertex.localParallelism()];
+                Arrays.setAll(snapshotQueues, i -> new OneToOneConcurrentArrayQueue<>(SNAPSHOT_QUEUE_SIZE));
+                ssConveyor = ConcurrentConveyor.concurrentConveyor(null, snapshotQueues);
+                ILogger storeSnapshotLogger = prefixedLogger(nodeEngine.getLogger(StoreSnapshotTasklet.class), jobPrefix);
+                StoreSnapshotTasklet ssTasklet = new StoreSnapshotTasklet(snapshotContext,
+                        ConcurrentInboundEdgeStream.create(ssConveyor, 0, 0, true, jobPrefix + "/ssFrom", null),
+                        new AsyncSnapshotWriterImpl(nodeEngine, snapshotContext, vertex.name(), memberIndex, memberCount,
+                                jobSerializationService),
+                        storeSnapshotLogger, vertex.name(), higherPriorityVertices.contains(vertex.vertexId()));
+                tasklets.add(ssTasklet);
+            }
 
             int localProcessorIdx = 0;
             for (Processor processor : processors) {
@@ -217,7 +221,8 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                 List<InboundEdgeStream> inboundStreams = createInboundEdgeStreams(
                         vertex, localProcessorIdx, jobPrefix, globalProcessorIndex);
 
-                OutboundCollector snapshotCollector = new ConveyorCollector(ssConveyor, localProcessorIdx, null);
+                OutboundCollector snapshotCollector = ssConveyor == null ? null :
+                        new ConveyorCollector(ssConveyor, localProcessorIdx, null);
 
                 // vertices which are only used for snapshot restore will not be marked as "source=true" in metrics
                 // also do not consider snapshot restore edges for determining source tag
