@@ -76,6 +76,7 @@ public class LightJobBench {
 //        System.in.read();
         System.out.println("starting benchmark");
         long start = System.nanoTime();
+        Timers.reset();
         for (int i = 0; i < measuredIterations; i++) {
             Timers.i().setGlobalStart();
             Timers.i().init.start();
