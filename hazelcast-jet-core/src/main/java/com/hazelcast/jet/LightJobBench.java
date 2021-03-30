@@ -73,7 +73,7 @@ public class LightJobBench {
         }
         System.out.println("warmup jobs done");
         System.out.println("attach profiler and press ENTER");
-        System.in.read();
+//        System.in.read();
         System.out.println("starting benchmark");
         Timers.resetAll();
         long start = System.nanoTime();
@@ -84,7 +84,7 @@ public class LightJobBench {
         System.out.println(measuredIterations + " jobs run in " + (elapsedMicros / measuredIterations) + " us/job");
         Timers.i().printAll();
         System.out.println("done, press ENTER to exit the JVM");
-        System.in.read();
+//        System.in.read();
     }
 
     public static void jetHeavyBench() throws IOException {
