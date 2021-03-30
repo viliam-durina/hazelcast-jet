@@ -26,53 +26,62 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class Timers {
 
-    private static Timers INSTANCE = new Timers();
+    private static Timers INSTANCE;
 
-    private final List<Timer> allTimers = new ArrayList<>();
+    private final List<AbstractTimer> allTimers = new ArrayList<>();
+    private final boolean useNoop;
 
-    public final Timer executionPlan_initialize = add("executionPlan_initialize");
-    public final Timer submitCooperativeTasklets = add("submitCooperativeTasklets");
-    public final Timer submitLightJobOperation_run = add("submitLightJobOperation_run");
-    public final Timer noopPInitToClose = add("noopPInitToClose");
-    public final Timer jobExecService_runLightJob_synchronization_inner = add("jobExecService_synchronization_inner");
-    public final Timer jobExecService_runLightJob_synchronization_outer = add("jobExecService_synchronization_outer");
-    public final Timer jobExecService_runLightJob_verifyClusterInfo = add("jobExecService_runLightJob_verifyClusterInfo");
-    public final Timer jobExecService_completeExecution = add("jobExecService_completeExecution");
-    public final Timer initExecOp_deserializePlan = add("initExecOp_deserializePlan");
-    public final Timer execCtx_initialize = add("execCtx_initialize");
-    public final Timer lightMasterContext_start = add("lightMasterContext_start");
-    public final Timer execPlanBuilder_createPlans = add("execPlanBuilder_createPlans");
-    public final Timer lightMasterContext_serializeOnePlan = add("lightMasterContext_serializeOnePlan");
-    public final Timer initResponseTime = add("initResponseTime");
-    public final Timer init = add("init");
-    public final Timer processorClose = add("processorClose");
+    public final AbstractTimer executionPlan_initialize = add("executionPlan_initialize");
+    public final AbstractTimer submitCooperativeTasklets = add("submitCooperativeTasklets");
+    public final AbstractTimer submitLightJobOperation_run = add("submitLightJobOperation_run");
+    public final AbstractTimer noopPInitToClose = add("noopPInitToClose");
+    public final AbstractTimer jobExecService_runLightJob_synchronization_inner = add("jobExecService_synchronization_inner");
+    public final AbstractTimer jobExecService_runLightJob_synchronization_outer = add("jobExecService_synchronization_outer");
+    public final AbstractTimer jobExecService_runLightJob_verifyClusterInfo = add("jobExecService_runLightJob_verifyClusterInfo");
+    public final AbstractTimer jobExecService_completeExecution = add("jobExecService_completeExecution");
+    public final AbstractTimer initExecOp_deserializePlan = add("initExecOp_deserializePlan");
+    public final AbstractTimer execCtx_initialize = add("execCtx_initialize");
+    public final AbstractTimer lightMasterContext_start = add("lightMasterContext_start");
+    public final AbstractTimer execPlanBuilder_createPlans = add("execPlanBuilder_createPlans");
+    public final AbstractTimer lightMasterContext_serializeOnePlan = add("lightMasterContext_serializeOnePlan");
+    public final AbstractTimer initResponseTime = add("initResponseTime");
+    public final AbstractTimer init = add("init");
+    public final AbstractTimer processorClose = add("processorClose");
 
     private long globalStart = System.nanoTime();
 
-    public static void reset() {
-        INSTANCE = new Timers();
+    public Timers(boolean useNoop) {
+        this.useNoop = useNoop;
+    }
+
+    public static void reset(boolean useNoop) {
+        INSTANCE = new Timers(useNoop);
     }
 
     public void setGlobalStart() {
         globalStart = System.nanoTime();
     }
 
-    private Timer add(String name) {
-        Timer t = new Timer(name);
+    private AbstractTimer add(String name) {
+        AbstractTimer t = useNoop ? new NoopTimer() : new Timer(name);
         allTimers.add(t);
         return t;
     }
 
     public void printAll() {
+        if (useNoop) {
+            return;
+        }
+
         System.out.println("-- sorted by start");
-        allTimers.sort(Comparator.comparing(t -> t.totalTimeToStart));
-        for (Timer t : allTimers) {
-            t.print();
+        allTimers.sort(Comparator.comparing(t -> ((Timer) t).totalTimeToStart));
+        for (AbstractTimer t : allTimers) {
+            ((Timer) t).print();
         }
         System.out.println("-- sorted by end");
-        allTimers.sort(Comparator.comparing(t -> t.totalTimeToEnd));
-        for (Timer t : allTimers) {
-            t.print();
+        allTimers.sort(Comparator.comparing(t -> ((Timer) t).totalTimeToEnd));
+        for (AbstractTimer t : allTimers) {
+            ((Timer) t).print();
         }
     }
 
@@ -87,7 +96,12 @@ public class Timers {
     private static final AtomicIntegerFieldUpdater<Timer> RUN_COUNT_UPDATER =
             AtomicIntegerFieldUpdater.newUpdater(Timer.class, "runCount");
 
-    public final class Timer {
+    public interface AbstractTimer {
+        void start();
+        void stop();
+    }
+
+    private final class Timer implements AbstractTimer {
         private final String name;
         volatile long totalTimeToStart;
         volatile long totalTimeToEnd;
@@ -97,11 +111,13 @@ public class Timers {
             this.name = name;
         }
 
+        @Override
         public void start() {
             TOTAL_TIME_TO_START_UPDATER.addAndGet(this, System.nanoTime() - globalStart);
             RUN_COUNT_UPDATER.incrementAndGet(this);
         }
 
+        @Override
         public void stop() {
             TOTAL_TIME_TO_END_UPDATER.addAndGet(this, System.nanoTime() - globalStart);
         }
@@ -114,5 +130,13 @@ public class Timers {
                     runCount != 0 ? NANOSECONDS.toMicros((totalTimeToEnd - totalTimeToStart) / runCount) : "--",
                     runCount);
         }
+    }
+
+    private static final class NoopTimer implements AbstractTimer {
+        @Override
+        public void start() { }
+
+        @Override
+        public void stop() { }
     }
 }

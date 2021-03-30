@@ -36,7 +36,7 @@ public class LightJobBench {
     public static void main(String[] args) throws IOException {
         if (args.length != 3) {
             System.err.println("Usage:");
-            System.err.println("  LightJobBench <jet|jet-heavy|imdg> <warmUpIterations> <measuredIterations>");
+            System.err.println("  LightJobBench <jet|jet-no-timers|jet-heavy|imdg> <warmUpIterations> <measuredIterations>");
             System.exit(-1);
         }
 
@@ -47,8 +47,10 @@ public class LightJobBench {
         jetInst = Jet.newJetInstance();
 
         switch (test) {
+            case "jet-no-timers":
+                jetBench(false);
             case "jet":
-                jetBench();
+                jetBench(true);
                 break;
             case "imdg":
                 sqlBench();
@@ -64,7 +66,7 @@ public class LightJobBench {
         Jet.shutdownAll();
     }
 
-    public static void jetBench() throws IOException {
+    public static void jetBench(boolean useNoop) throws IOException {
         DAG dag = new DAG();
         dag.newVertex("v", Processors.noopP()).localParallelism(1);
         System.out.println("will submit " + warmUpIterations + " jobs");
@@ -76,7 +78,7 @@ public class LightJobBench {
 //        System.in.read();
         System.out.println("starting benchmark");
         long start = System.nanoTime();
-        Timers.reset();
+        Timers.reset(useNoop);
         for (int i = 0; i < measuredIterations; i++) {
             Timers.i().setGlobalStart();
             Timers.i().init.start();
