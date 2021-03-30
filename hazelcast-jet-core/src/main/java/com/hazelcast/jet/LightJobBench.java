@@ -35,20 +35,29 @@ public class LightJobBench {
     public static void main(String[] args) throws IOException {
         if (args.length != 3) {
             System.err.println("Usage:");
-            System.err.println("  LightJobBench <jet|imdg> <warmUpIterations> <measuredIterations>");
-            System.exit(1);
+            System.err.println("  LightJobBench <jet|jet-heavy|imdg> <warmUpIterations> <measuredIterations>");
+            System.exit(-1);
         }
 
-        boolean isJet = "jet".equalsIgnoreCase(args[0]);
+        String test = args[0];
         warmUpIterations = Integer.parseInt(args[1]);
         measuredIterations = Integer.parseInt(args[2]);
 
         jetInst = Jet.newJetInstance();
 
-        if (isJet) {
-            jetBench();
-        } else {
-            sqlBench();
+        switch (test) {
+            case "jet":
+                jetBench();
+                break;
+            case "imdg":
+                sqlBench();
+                break;
+            case "jet-heavy":
+                jetHeavyBench();
+                break;
+            default:
+                System.err.println("bad test name: " + test);
+                System.exit(-1);
         }
 
         Jet.shutdownAll();
@@ -62,7 +71,7 @@ public class LightJobBench {
             jetInst.newLightJob(dag).join();
         }
         System.out.println("warmup jobs done");
-        System.out.println("attach profiler and press any key");
+        System.out.println("attach profiler and press ENTER");
         System.in.read();
         System.out.println("starting benchmark");
         long start = System.nanoTime();
@@ -71,7 +80,28 @@ public class LightJobBench {
         }
         long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);
         System.out.println(measuredIterations + " jobs run in " + (elapsedMicros / measuredIterations) + " us/job");
-        System.out.println("done, press any key to exit the JVM");
+        System.out.println("done, press ENTER to exit the JVM");
+        System.in.read();
+    }
+
+    public static void jetHeavyBench() throws IOException {
+        DAG dag = new DAG();
+        dag.newVertex("v", Processors.noopP());
+        System.out.println("will submit " + warmUpIterations + " jobs");
+        for (int i = 0; i < warmUpIterations; i++) {
+            jetInst.newJob(dag).join();
+        }
+        System.out.println("warmup jobs done");
+        System.out.println("attach profiler and press ENTER");
+        System.in.read();
+        System.out.println("starting benchmark");
+        long start = System.nanoTime();
+        for (int i = 0; i < measuredIterations; i++) {
+            jetInst.newJob(dag).join();
+        }
+        long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);
+        System.out.println(measuredIterations + " jobs run in " + (elapsedMicros / measuredIterations) + " us/job");
+        System.out.println("done, press ENTER to exit the JVM");
         System.in.read();
     }
 
