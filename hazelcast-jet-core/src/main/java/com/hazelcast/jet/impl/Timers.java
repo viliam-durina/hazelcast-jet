@@ -26,7 +26,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class Timers {
 
-    private static Timers INSTANCE;
+    private static volatile Timers INSTANCE;
 
     private final List<AbstractTimer> allTimers = new ArrayList<>();
     private final boolean useNoop;
