@@ -21,6 +21,7 @@ import com.hazelcast.core.OperationTimeoutException;
 import com.hazelcast.internal.cluster.MemberInfo;
 import com.hazelcast.internal.cluster.impl.ClusterServiceImpl;
 import com.hazelcast.internal.cluster.impl.MembersView;
+import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
@@ -104,11 +105,12 @@ public class LightMasterContext {
         logFine(logger, "Built execution plans for %s", jobIdString);
         Set<MemberInfo> participants = executionPlanMap.keySet();
         Function<ExecutionPlan, Operation> operationCtor = plan -> {
-            Timers.i().execPlanBuilder_createOneInitExecutionOp.start();
-            InitExecutionOperation op = new InitExecutionOperation(jobId, jobId, membersView.getVersion(), participants,
-                    nodeEngine.getSerializationService().toData(plan), true);
-            Timers.i().execPlanBuilder_createOneInitExecutionOp.stop();
-            return op;
+            Timers.i().lightMasterContext_serializeOnePlan.start();
+            Data serializedPlan = nodeEngine.getSerializationService().toData(plan);
+            Timers.i().lightMasterContext_serializeOnePlan.stop();
+
+            return new InitExecutionOperation(jobId, jobId, membersView.getVersion(), participants,
+                    serializedPlan, true);
         };
         vertices = new HashSet<>();
         dag.iterator().forEachRemaining(vertices::add);

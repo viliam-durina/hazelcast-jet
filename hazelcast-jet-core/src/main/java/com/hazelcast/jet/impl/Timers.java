@@ -36,7 +36,9 @@ public class Timers {
     public final Timer execCtx_initialize = new Timer("execCtx_initialize");
     public final Timer lightMasterContext_start = new Timer("lightMasterContext_start");
     public final Timer execPlanBuilder_createPlans = new Timer("execPlanBuilder_createPlans");
-    public final Timer execPlanBuilder_createOneInitExecutionOp = new Timer("execPlanBuilder_createOneInitExecutionOp");
+    public final Timer lightMasterContext_serializeOnePlan = new Timer("lightMasterContext_serializeOnePlan");
+    public final Timer executionPlan_serialization_vertices = new Timer("executionPlan_serialization_vertices");
+    public final Timer executionPlan_serialization_jobConfig = new Timer("executionPlan_serialization_jobConfig");
 
     public static void resetAll() {
         INSTANCE = new Timers();
@@ -54,7 +56,9 @@ public class Timers {
         execCtx_initialize.print();
         lightMasterContext_start.print();
         execPlanBuilder_createPlans.print();
-        execPlanBuilder_createOneInitExecutionOp.print();
+        lightMasterContext_serializeOnePlan.print();
+        executionPlan_serialization_vertices.print();
+        executionPlan_serialization_jobConfig.print();
     }
 
     public static Timers i() {

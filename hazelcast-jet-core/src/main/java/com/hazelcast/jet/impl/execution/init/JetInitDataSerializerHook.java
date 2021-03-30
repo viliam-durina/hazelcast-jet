@@ -18,6 +18,7 @@ package com.hazelcast.jet.impl.execution.init;
 
 import com.hazelcast.internal.serialization.DataSerializerHook;
 import com.hazelcast.internal.serialization.impl.FactoryIdHelper;
+import com.hazelcast.jet.core.processor.Processors;
 import com.hazelcast.jet.impl.JobExecutionRecord;
 import com.hazelcast.jet.impl.JobExecutionRecord.SnapshotStats;
 import com.hazelcast.jet.impl.JobRecord;
@@ -51,6 +52,7 @@ import com.hazelcast.jet.impl.operation.SubmitJobOperation;
 import com.hazelcast.jet.impl.operation.SubmitLightJobOperation;
 import com.hazelcast.jet.impl.operation.TerminateExecutionOperation;
 import com.hazelcast.jet.impl.operation.TerminateJobOperation;
+import com.hazelcast.jet.impl.processor.ProcessorSupplierFromSimpleSupplier;
 import com.hazelcast.jet.impl.processor.SessionWindowP;
 import com.hazelcast.jet.impl.processor.SlidingWindowP.SnapshotKey;
 import com.hazelcast.jet.impl.util.AsyncSnapshotWriterImpl;
@@ -102,6 +104,8 @@ public final class JetInitDataSerializerHook implements DataSerializerHook {
     public static final int JOB_SUSPENSION_CAUSE = 43;
     public static final int GET_JOB_SUSPENSION_CAUSE_OP = 44;
     public static final int SUBMIT_LIGHT_JOB_OP = 45;
+    public static final int PROCESSOR_SUPPLIER_FROM_SIMPLE_SUPPLIER = 46;
+    public static final int NOOP_PROCESSOR_SUPPLIER = 47;
 
     public static final int FACTORY_ID = FactoryIdHelper.getFactoryId(JET_IMPL_DS_FACTORY, JET_IMPL_DS_FACTORY_ID);
 
@@ -200,6 +204,10 @@ public final class JetInitDataSerializerHook implements DataSerializerHook {
                     return new GetJobSuspensionCauseOperation();
                 case SUBMIT_LIGHT_JOB_OP:
                     return new SubmitLightJobOperation();
+                case PROCESSOR_SUPPLIER_FROM_SIMPLE_SUPPLIER:
+                    return new ProcessorSupplierFromSimpleSupplier();
+                case NOOP_PROCESSOR_SUPPLIER:
+                    return new Processors.NoopPSupplier();
                 default:
                     throw new IllegalArgumentException("Unknown type id " + typeId);
             }

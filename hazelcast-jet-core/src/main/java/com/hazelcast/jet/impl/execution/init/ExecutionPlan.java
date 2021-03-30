@@ -101,6 +101,8 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     // want to make this configurable
     private static final int SNAPSHOT_QUEUE_SIZE = DEFAULT_QUEUE_SIZE;
 
+    private static final JobConfig LIGHT_JOB_CONFIG = new JobConfig();
+
     /** Snapshot of partition table used to route items on partitioned edges */
     private Address[] partitionOwners;
 
@@ -288,6 +290,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     @Override
     public void writeData(ObjectDataOutput out) throws IOException {
         writeList(out, vertices);
+
         out.writeInt(partitionOwners.length);
         out.writeLong(lastSnapshotId);
         for (Address address : partitionOwners) {

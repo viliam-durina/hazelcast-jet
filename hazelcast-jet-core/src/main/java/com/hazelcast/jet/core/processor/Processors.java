@@ -42,6 +42,7 @@ import com.hazelcast.jet.core.function.KeyedWindowResultFunction;
 import com.hazelcast.jet.datamodel.KeyedWindowResult;
 import com.hazelcast.jet.function.TriFunction;
 import com.hazelcast.jet.impl.Timers;
+import com.hazelcast.jet.impl.execution.init.JetInitDataSerializerHook;
 import com.hazelcast.jet.impl.processor.AggregateP;
 import com.hazelcast.jet.impl.processor.AsyncTransformUsingServiceOrderedP;
 import com.hazelcast.jet.impl.processor.AsyncTransformUsingServiceUnorderedP;
@@ -54,9 +55,13 @@ import com.hazelcast.jet.impl.processor.TransformP;
 import com.hazelcast.jet.impl.processor.TransformStatefulP;
 import com.hazelcast.jet.impl.processor.TransformUsingServiceP;
 import com.hazelcast.jet.pipeline.ServiceFactory;
+import com.hazelcast.nio.ObjectDataInput;
+import com.hazelcast.nio.ObjectDataOutput;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map.Entry;
@@ -996,7 +1001,34 @@ public final class Processors {
      */
     @Nonnull
     public static SupplierEx<Processor> noopP() {
-        return NoopP::new;
+        return new NoopPSupplier();
+    }
+
+    // TODO [viliam] move away from public API
+    public static final class NoopPSupplier implements SupplierEx<Processor>, IdentifiedDataSerializable {
+
+        @Override
+        public Processor getEx() throws Exception {
+            return new NoopP();
+        }
+
+        @Override
+        public int getFactoryId() {
+            return JetInitDataSerializerHook.FACTORY_ID;
+        }
+
+        @Override
+        public int getClassId() {
+            return JetInitDataSerializerHook.NOOP_PROCESSOR_SUPPLIER;
+        }
+
+        @Override
+        public void writeData(ObjectDataOutput out) throws IOException {
+        }
+
+        @Override
+        public void readData(ObjectDataInput in) throws IOException {
+        }
     }
 
     /** A no-operation processor. See {@link #noopP()} */

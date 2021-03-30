@@ -19,9 +19,10 @@ package com.hazelcast.jet.impl.processor;
 import com.hazelcast.function.SupplierEx;
 import com.hazelcast.jet.core.Processor;
 import com.hazelcast.jet.core.ProcessorSupplier;
+import com.hazelcast.jet.impl.execution.init.JetInitDataSerializerHook;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.nio.serialization.DataSerializable;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -29,7 +30,8 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ProcessorSupplierFromSimpleSupplier implements ProcessorSupplier, DataSerializable {
+// TODO [viliam] use IDS
+public class ProcessorSupplierFromSimpleSupplier implements ProcessorSupplier, IdentifiedDataSerializable {
 
     private SupplierEx<? extends Processor> simpleSupplier;
 
@@ -44,6 +46,16 @@ public class ProcessorSupplierFromSimpleSupplier implements ProcessorSupplier, D
     @Nonnull @Override
     public Collection<? extends Processor> get(int count) {
         return Stream.generate(simpleSupplier).limit(count).collect(Collectors.toList());
+    }
+
+    @Override
+    public int getFactoryId() {
+        return JetInitDataSerializerHook.FACTORY_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return JetInitDataSerializerHook.PROCESSOR_SUPPLIER_FROM_SIMPLE_SUPPLIER;
     }
 
     @Override
