@@ -18,6 +18,7 @@ package com.hazelcast.jet;
 
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.processor.Processors;
+import com.hazelcast.jet.impl.Timers;
 import com.hazelcast.sql.SqlRow;
 import com.hazelcast.sql.SqlService;
 
@@ -74,12 +75,14 @@ public class LightJobBench {
         System.out.println("attach profiler and press ENTER");
         System.in.read();
         System.out.println("starting benchmark");
+        Timers.resetAll();
         long start = System.nanoTime();
         for (int i = 0; i < measuredIterations; i++) {
             jetInst.newLightJob(dag).join();
         }
         long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);
         System.out.println(measuredIterations + " jobs run in " + (elapsedMicros / measuredIterations) + " us/job");
+        Timers.i().printAll();
         System.out.println("done, press ENTER to exit the JVM");
         System.in.read();
     }
