@@ -37,8 +37,6 @@ public class Timers {
     public final Timer lightMasterContext_start = new Timer("lightMasterContext_start");
     public final Timer execPlanBuilder_createPlans = new Timer("execPlanBuilder_createPlans");
     public final Timer lightMasterContext_serializeOnePlan = new Timer("lightMasterContext_serializeOnePlan");
-    public final Timer executionPlan_serialization_vertices = new Timer("executionPlan_serialization_vertices");
-    public final Timer executionPlan_serialization_jobConfig = new Timer("executionPlan_serialization_jobConfig");
 
     public static void resetAll() {
         INSTANCE = new Timers();
@@ -57,8 +55,6 @@ public class Timers {
         lightMasterContext_start.print();
         execPlanBuilder_createPlans.print();
         lightMasterContext_serializeOnePlan.print();
-        executionPlan_serialization_vertices.print();
-        executionPlan_serialization_jobConfig.print();
     }
 
     public static Timers i() {
@@ -89,7 +85,7 @@ public class Timers {
         }
 
         private void print() {
-            System.out.println(name + ": " + NANOSECONDS.toMicros(totalTime / runCount) + " (" + runCount + ")");
+            System.out.println(name + ": " + (runCount != 0 ? NANOSECONDS.toMicros(totalTime / runCount) : "--") + " (" + runCount + ")");
         }
     }
 }

@@ -290,7 +290,6 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     @Override
     public void writeData(ObjectDataOutput out) throws IOException {
         writeList(out, vertices);
-
         out.writeInt(partitionOwners.length);
         out.writeLong(lastSnapshotId);
         for (Address address : partitionOwners) {
