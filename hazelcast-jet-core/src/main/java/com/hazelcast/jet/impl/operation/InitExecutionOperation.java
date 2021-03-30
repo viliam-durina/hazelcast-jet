@@ -78,7 +78,8 @@ public class InitExecutionOperation extends AsyncJobOperation {
         Timers.i().initExecOp_deserializePlan.stop();
         if (isLightJob) {
             return service.getJobExecutionService().runLightJob(jobId(), executionId, caller,
-                    coordinatorMemberListVersion, participants, plan);
+                    coordinatorMemberListVersion, participants, plan)
+                    .whenComplete((r, t) -> Timers.i().initResponseTime.start());
         } else {
             service.getJobExecutionService().initExecution(jobId(), executionId, caller,
                     coordinatorMemberListVersion, participants, plan);

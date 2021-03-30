@@ -394,6 +394,7 @@ public class JobExecutionService implements DynamicMetricsProvider {
      * Completes and cleans up execution of the given job
      */
     public void completeExecution(long executionId, Throwable error) {
+        Timers.i().jobExecService_completeExecution.start();
         ExecutionContext executionContext = executionContexts.remove(executionId);
         if (executionContext != null) {
             JetClassLoader removedClassLoader = classLoaders.remove(executionContext.jobId());
@@ -409,6 +410,7 @@ public class JobExecutionService implements DynamicMetricsProvider {
         } else {
             logger.fine("Execution " + idToString(executionId) + " not found for completion");
         }
+        Timers.i().jobExecService_completeExecution.stop();
     }
 
     public void updateMetrics(@Nonnull Long executionId, RawJobMetrics metrics) {

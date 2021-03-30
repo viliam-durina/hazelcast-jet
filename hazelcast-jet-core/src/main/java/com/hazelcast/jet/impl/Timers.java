@@ -32,11 +32,14 @@ public class Timers {
     public final Timer jobExecService_runLightJob_synchronization_inner = new Timer("jobExecService_synchronization_inner");
     public final Timer jobExecService_runLightJob_synchronization_outer = new Timer("jobExecService_synchronization_outer");
     public final Timer jobExecService_runLightJob_verifyClusterInfo = new Timer("jobExecService_runLightJob_verifyClusterInfo");
+    public final Timer jobExecService_completeExecution = new Timer("jobExecService_completeExecution");
     public final Timer initExecOp_deserializePlan = new Timer("initExecOp_deserializePlan");
     public final Timer execCtx_initialize = new Timer("execCtx_initialize");
     public final Timer lightMasterContext_start = new Timer("lightMasterContext_start");
     public final Timer execPlanBuilder_createPlans = new Timer("execPlanBuilder_createPlans");
     public final Timer lightMasterContext_serializeOnePlan = new Timer("lightMasterContext_serializeOnePlan");
+    public final Timer taskletLife = new Timer("taskletLife");
+    public final Timer initResponseTime = new Timer("initResponseTime");
 
     public static void resetAll() {
         INSTANCE = new Timers();
@@ -50,11 +53,13 @@ public class Timers {
         jobExecService_runLightJob_synchronization_inner.print();
         jobExecService_runLightJob_synchronization_outer.print();
         jobExecService_runLightJob_verifyClusterInfo.print();
+        jobExecService_completeExecution.print();
         initExecOp_deserializePlan.print();
         execCtx_initialize.print();
         lightMasterContext_start.print();
         execPlanBuilder_createPlans.print();
         lightMasterContext_serializeOnePlan.print();
+        initResponseTime.print();
     }
 
     public static Timers i() {
@@ -85,7 +90,7 @@ public class Timers {
         }
 
         private void print() {
-            System.out.println(name + ": " + (runCount != 0 ? NANOSECONDS.toMicros(totalTime / runCount) : "--") + " (" + runCount + ")");
+            System.out.printf("%50s: %6s (%d)\n", name, (runCount != 0 ? NANOSECONDS.toMicros(totalTime / runCount) : "--"), runCount);
         }
     }
 }

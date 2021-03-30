@@ -123,6 +123,7 @@ public class LightMasterContext {
     }
 
     private void finalizeJob(@Nullable Throwable failure) {
+        Timers.i().initResponseTime.stop();
         // close ProcessorMetaSuppliers
         if (vertices != null) {
             for (Vertex vertex : vertices) {

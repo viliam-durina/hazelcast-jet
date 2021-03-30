@@ -66,7 +66,7 @@ public class LightJobBench {
 
     public static void jetBench() throws IOException {
         DAG dag = new DAG();
-        dag.newVertex("v", Processors.noopP());
+        dag.newVertex("v", Processors.noopP()).localParallelism(1);
         System.out.println("will submit " + warmUpIterations + " jobs");
         for (int i = 0; i < warmUpIterations; i++) {
             jetInst.newLightJob(dag).join();
@@ -89,7 +89,7 @@ public class LightJobBench {
 
     public static void jetHeavyBench() throws IOException {
         DAG dag = new DAG();
-        dag.newVertex("v", Processors.noopP());
+        dag.newVertex("v", Processors.noopP()).localParallelism(1);
         System.out.println("will submit " + warmUpIterations + " jobs");
         for (int i = 0; i < warmUpIterations; i++) {
             jetInst.newJob(dag).join();

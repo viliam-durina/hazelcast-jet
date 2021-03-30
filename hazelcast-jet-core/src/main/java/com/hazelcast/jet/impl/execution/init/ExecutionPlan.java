@@ -295,6 +295,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         for (Address address : partitionOwners) {
             out.writeObject(address);
         }
+        // TODO [viliam] avoid jobConfig for light jobs
         out.writeObject(jobConfig);
         out.writeInt(memberIndex);
         out.writeInt(memberCount);
