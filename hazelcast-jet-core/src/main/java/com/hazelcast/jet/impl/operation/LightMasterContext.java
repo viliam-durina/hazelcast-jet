@@ -25,6 +25,7 @@ import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.jet.impl.JetService;
+import com.hazelcast.jet.impl.Timers;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlan;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.spi.impl.NodeEngine;
@@ -89,6 +90,7 @@ public class LightMasterContext {
     }
 
     public CompletableFuture<Void> start() {
+        Timers.i().lightMasterContext_start.start();
         MembersView membersView = getMembersView();
         if (logger.isFineEnabled()) {
             String dotRepresentation = dag.toDotString();
@@ -101,15 +103,20 @@ public class LightMasterContext {
         executionPlanMap = createExecutionPlans(nodeEngine, membersView, dag, jobId, jobId, LIGHT_JOB_CONFIG, 0, true);
         logFine(logger, "Built execution plans for %s", jobIdString);
         Set<MemberInfo> participants = executionPlanMap.keySet();
-        Function<ExecutionPlan, Operation> operationCtor = plan ->
-                new InitExecutionOperation(jobId, jobId, membersView.getVersion(), participants,
-                        nodeEngine.getSerializationService().toData(plan), true);
+        Function<ExecutionPlan, Operation> operationCtor = plan -> {
+            Timers.i().execPlanBuilder_createOneInitExecutionOp.start();
+            InitExecutionOperation op = new InitExecutionOperation(jobId, jobId, membersView.getVersion(), participants,
+                    nodeEngine.getSerializationService().toData(plan), true);
+            Timers.i().execPlanBuilder_createOneInitExecutionOp.stop();
+            return op;
+        };
         vertices = new HashSet<>();
         dag.iterator().forEachRemaining(vertices::add);
         invokeOnParticipants(operationCtor,
                 responses -> finalizeJob(firstError(responses)),
                 error -> cancelInvocations(),
                 false);
+        Timers.i().lightMasterContext_start.stop();
         return jobCompletionFuture;
     }
 

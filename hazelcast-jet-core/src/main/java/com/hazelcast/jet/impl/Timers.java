@@ -34,6 +34,9 @@ public class Timers {
     public final Timer jobExecService_runLightJob_verifyClusterInfo = new Timer("jobExecService_runLightJob_verifyClusterInfo");
     public final Timer initExecOp_deserializePlan = new Timer("initExecOp_deserializePlan");
     public final Timer execCtx_initialize = new Timer("execCtx_initialize");
+    public final Timer lightMasterContext_start = new Timer("lightMasterContext_start");
+    public final Timer execPlanBuilder_createPlans = new Timer("execPlanBuilder_createPlans");
+    public final Timer execPlanBuilder_createOneInitExecutionOp = new Timer("execPlanBuilder_createOneInitExecutionOp");
 
     public static void resetAll() {
         INSTANCE = new Timers();
@@ -49,6 +52,9 @@ public class Timers {
         jobExecService_runLightJob_verifyClusterInfo.print();
         initExecOp_deserializePlan.print();
         execCtx_initialize.print();
+        lightMasterContext_start.print();
+        execPlanBuilder_createPlans.print();
+        execPlanBuilder_createOneInitExecutionOp.print();
     }
 
     public static Timers i() {

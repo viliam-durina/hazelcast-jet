@@ -29,6 +29,7 @@ import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.core.ProcessorSupplier;
 import com.hazelcast.jet.core.TopologyChangedException;
 import com.hazelcast.jet.core.Vertex;
+import com.hazelcast.jet.impl.Timers;
 import com.hazelcast.jet.impl.execution.init.Contexts.MetaSupplierCtx;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.spi.impl.NodeEngine;
@@ -59,6 +60,7 @@ public final class ExecutionPlanBuilder {
             NodeEngine nodeEngine, MembersView membersView, DAG dag, long jobId, long executionId,
             JobConfig jobConfig, long lastSnapshotId, boolean isLightJob
     ) {
+        Timers.i().execPlanBuilder_createPlans.start();
         final JetInstance instance = getJetInstance(nodeEngine);
         final int defaultParallelism = instance.getConfig().getInstanceConfig().getCooperativeThreadCount();
         final Set<MemberInfo> members = new HashSet<>(membersView.size());
@@ -111,6 +113,7 @@ public final class ExecutionPlanBuilder {
                 e.getValue().addVertex(vertexDef);
             }
         }
+        Timers.i().execPlanBuilder_createPlans.stop();
         return plans;
     }
 
