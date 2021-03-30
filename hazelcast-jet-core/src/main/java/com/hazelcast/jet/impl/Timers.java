@@ -26,7 +26,7 @@ public class Timers {
 
     public final Timer executionPlan_initialize = new Timer("executionPlan_initialize");
     public final Timer submitCooperativeTasklets = new Timer("submitCooperativeTasklets");
-    public final Timer submitLightJobOperation_run;
+    public final Timer submitLightJobOperation_run = new Timer("submitLightJobOperation_run");
 
     public static void resetAll() {
         INSTANCE = new Timers();
