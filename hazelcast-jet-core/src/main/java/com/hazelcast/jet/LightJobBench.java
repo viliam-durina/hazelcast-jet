@@ -21,6 +21,8 @@ import com.hazelcast.jet.core.processor.Processors;
 import com.hazelcast.sql.SqlRow;
 import com.hazelcast.sql.SqlService;
 
+import java.io.IOException;
+
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class LightJobBench {
@@ -30,7 +32,7 @@ public class LightJobBench {
 
     private static JetInstance jetInst;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         if (args.length != 3) {
             System.err.println("Usage:");
             System.err.println("  LightJobBench <jet|imdg> <warmUpIterations> <measuredIterations>");
@@ -49,21 +51,20 @@ public class LightJobBench {
             sqlBench();
         }
 
-        jetInst.shutdown();
+        Jet.shutdownAll();
     }
 
-    public static void jetBench() {
+    public static void jetBench() throws IOException {
         DAG dag = new DAG();
         dag.newVertex("v", Processors.noopP());
         System.out.println("will submit " + warmUpIterations + " jobs");
         for (int i = 0; i < warmUpIterations; i++) {
             jetInst.newLightJob(dag).join();
         }
-//        for (int i = 20; i >= 0; i--) {
-//            System.out.println("attach profiler " + i);
-//            Thread.sleep(1000);
-//        }
-        System.out.println("warmup jobs done, starting benchmark");
+        System.out.println("warmup jobs done");
+        System.out.println("attach profiler and press enter");
+        System.in.read();
+        System.out.println("starting benchmark");
         long start = System.nanoTime();
         for (int i = 0; i < measuredIterations; i++) {
             jetInst.newLightJob(dag).join();
