@@ -48,9 +48,9 @@ public class LightJobBench {
 
         switch (test) {
             case "jet-no-timers":
-                jetBench(false);
-            case "jet":
                 jetBench(true);
+            case "jet":
+                jetBench(false);
                 break;
             case "imdg":
                 sqlBench();
@@ -70,6 +70,7 @@ public class LightJobBench {
         DAG dag = new DAG();
         dag.newVertex("v", Processors.noopP()).localParallelism(1);
         System.out.println("will submit " + warmUpIterations + " jobs");
+        Timers.reset(useNoop);
         for (int i = 0; i < warmUpIterations; i++) {
             jetInst.newLightJob(dag).join();
         }
