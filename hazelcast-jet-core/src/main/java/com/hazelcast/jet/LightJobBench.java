@@ -75,9 +75,10 @@ public class LightJobBench {
         System.out.println("attach profiler and press ENTER");
 //        System.in.read();
         System.out.println("starting benchmark");
-        Timers.resetAll();
         long start = System.nanoTime();
         for (int i = 0; i < measuredIterations; i++) {
+            Timers.i().setGlobalStart();
+            Timers.i().init.start();
             jetInst.newLightJob(dag).join();
         }
         long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);

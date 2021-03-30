@@ -60,6 +60,7 @@ public class JetInstanceImpl extends AbstractJetInstance {
 
     @Nonnull @Override
     public LightJob newLightJob(DAG dag) {
+        Timers.i().init.stop();
         Address thisAddress = nodeEngine.getThisAddress();
         SubmitLightJobOperation operation = new SubmitLightJobOperation(newJobId(), dag);
         Future<Void> future = nodeEngine

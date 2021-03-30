@@ -456,7 +456,6 @@ public class TaskletExecutionService {
         }
 
         void taskletDone() {
-            Timers.i().taskletLife.stop();
             if (completionLatch.decrementAndGet() == 0) {
                 Throwable ex = executionException.get();
                 if (ex == null) {
