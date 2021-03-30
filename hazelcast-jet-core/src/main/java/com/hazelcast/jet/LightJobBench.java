@@ -62,7 +62,7 @@ public class LightJobBench {
             jetInst.newLightJob(dag).join();
         }
         System.out.println("warmup jobs done");
-        System.out.println("attach profiler and press enter");
+        System.out.println("attach profiler and press any key");
         System.in.read();
         System.out.println("starting benchmark");
         long start = System.nanoTime();
@@ -71,6 +71,8 @@ public class LightJobBench {
         }
         long elapsedMicros = NANOSECONDS.toMicros(System.nanoTime() - start);
         System.out.println(measuredIterations + " jobs run in " + (elapsedMicros / measuredIterations) + " us/job");
+        System.out.println("done, press any key to exit the JVM");
+        System.in.read();
     }
 
     public static void sqlBench() {
