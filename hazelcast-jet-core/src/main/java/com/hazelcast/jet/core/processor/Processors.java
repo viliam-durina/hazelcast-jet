@@ -1060,5 +1060,10 @@ public final class Processors {
         public void close() throws Exception {
             Timers.i().noopPInitToClose.stop();
         }
+
+        @Override
+        public boolean closeIsCooperative() {
+            return true;
+        }
     }
 }

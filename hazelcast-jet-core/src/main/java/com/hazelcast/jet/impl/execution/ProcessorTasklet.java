@@ -389,7 +389,7 @@ public class ProcessorTasklet implements Tasklet {
                 return;
 
             case CLOSE:
-                if (isCooperative()) {
+                if (isCooperative() && !processor.closeIsCooperative()) {
                     if (closeFuture == null) {
                         Timers.i().processorClose.start();
                         closeFuture = executionService.submit(this::closeProcessor);
