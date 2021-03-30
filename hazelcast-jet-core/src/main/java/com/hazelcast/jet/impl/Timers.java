@@ -16,6 +16,8 @@
 
 package com.hazelcast.jet.impl;
 
+import com.hazelcast.jet.impl.operation.LightMasterContext;
+
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class Timers {
@@ -23,6 +25,8 @@ public class Timers {
     private static Timers INSTANCE = new Timers();
 
     public final Timer executionPlan_initialize = new Timer("executionPlan_initialize");
+    public final Timer submitCooperativeTasklets = new Timer("submitCooperativeTasklets");
+    public final Timer submitLightJobOperation_run;
 
     public static void resetAll() {
         INSTANCE = new Timers();
@@ -30,6 +34,7 @@ public class Timers {
 
     public void printAll() {
         executionPlan_initialize.print();
+        submitCooperativeTasklets.print();
     }
 
     public static Timers i() {
@@ -54,7 +59,7 @@ public class Timers {
             totalTime += System.nanoTime();
         }
 
-        void print() {
+        private void print() {
             System.out.println(name + ": " + NANOSECONDS.toMicros(totalTime / runCount) + " (" + runCount + ")");
         }
     }

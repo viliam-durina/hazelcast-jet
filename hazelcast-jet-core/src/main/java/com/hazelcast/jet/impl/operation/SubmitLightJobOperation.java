@@ -18,6 +18,7 @@ package com.hazelcast.jet.impl.operation;
 
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.impl.JetService;
+import com.hazelcast.jet.impl.Timers;
 import com.hazelcast.jet.impl.execution.init.JetInitDataSerializerHook;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
@@ -45,10 +46,12 @@ public class SubmitLightJobOperation extends AsyncOperation {
 
     @Override
     protected CompletableFuture<Void> doRun() {
+        Timers.i().submitLightJobOperation_run.start();
         long jobId = getJetService().getJobRepository().newJobId();
         assert !getNodeEngine().getLocalMember().isLiteMember() : "light job submitted to a lite member";
         return new LightMasterContext(getNodeEngine(), dag, jobId)
-                .start();
+                .start()
+                .whenComplete((t, r) -> Timers.i().submitLightJobOperation_run.stop());
     }
 
     @Override
