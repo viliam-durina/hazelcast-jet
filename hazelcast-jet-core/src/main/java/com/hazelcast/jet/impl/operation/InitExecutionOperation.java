@@ -21,6 +21,7 @@ import com.hazelcast.internal.cluster.MemberInfo;
 import com.hazelcast.internal.nio.IOUtil;
 import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.jet.impl.JetService;
+import com.hazelcast.jet.impl.Timers;
 import com.hazelcast.jet.impl.execution.init.ExecutionPlan;
 import com.hazelcast.jet.impl.execution.init.JetInitDataSerializerHook;
 import com.hazelcast.jet.impl.util.LoggingUtil;
@@ -72,7 +73,9 @@ public class InitExecutionOperation extends AsyncJobOperation {
         Address caller = getCallerAddress();
         LoggingUtil.logFine(logger, "Initializing execution plan for %s from %s", jobIdAndExecutionId(jobId(), executionId), caller);
 
+        Timers.i().initExecOp_deserializePlan.start();
         ExecutionPlan plan = deserializePlan(serializedPlan);
+        Timers.i().initExecOp_deserializePlan.stop();
         if (isLightJob) {
             return service.getJobExecutionService().runLightJob(jobId(), executionId, caller,
                     coordinatorMemberListVersion, participants, plan);

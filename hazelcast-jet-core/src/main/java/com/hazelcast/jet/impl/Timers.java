@@ -29,8 +29,11 @@ public class Timers {
     public final Timer submitCooperativeTasklets = new Timer("submitCooperativeTasklets");
     public final Timer submitLightJobOperation_run = new Timer("submitLightJobOperation_run");
     public final Timer noopPInitToClose = new Timer("noopPInitToClose");
-    public final Timer jobExecService_synchronization_inner = new Timer("jobExecService_synchronization_inner");
-    public final Timer jobExecService_synchronization_outer = new Timer("jobExecService_synchronization_outer");
+    public final Timer jobExecService_runLightJob_synchronization_inner = new Timer("jobExecService_synchronization_inner");
+    public final Timer jobExecService_runLightJob_synchronization_outer = new Timer("jobExecService_synchronization_outer");
+    public final Timer jobExecService_runLightJob_verifyClusterInfo = new Timer("jobExecService_runLightJob_verifyClusterInfo");
+    public final Timer initExecOp_deserializePlan = new Timer("initExecOp_deserializePlan");
+    public final Timer execCtx_initialize = new Timer("execCtx_initialize");
 
     public static void resetAll() {
         INSTANCE = new Timers();
@@ -41,8 +44,11 @@ public class Timers {
         submitCooperativeTasklets.print();
         submitLightJobOperation_run.print();
         noopPInitToClose.print();
-        jobExecService_synchronization_inner.print();
-        jobExecService_synchronization_outer.print();
+        jobExecService_runLightJob_synchronization_inner.print();
+        jobExecService_runLightJob_synchronization_outer.print();
+        jobExecService_runLightJob_verifyClusterInfo.print();
+        initExecOp_deserializePlan.print();
+        execCtx_initialize.print();
     }
 
     public static Timers i() {

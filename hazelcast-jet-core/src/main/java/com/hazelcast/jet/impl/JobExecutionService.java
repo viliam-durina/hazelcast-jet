@@ -204,19 +204,21 @@ public class JobExecutionService implements DynamicMetricsProvider {
             ExecutionPlan plan
     ) {
         assert executionId == jobId : "executionId(" + idToString(executionId) + ") != jobId(" + idToString(jobId) + ")";
+        Timers.i().jobExecService_runLightJob_verifyClusterInfo.start();
         verifyClusterInformation(jobId, executionId, coordinator, coordinatorMemberListVersion, participants);
+        Timers.i().jobExecService_runLightJob_verifyClusterInfo.stop();
         failIfNotRunning();
 
-        Timers.i().jobExecService_synchronization_outer.start();
+        Timers.i().jobExecService_runLightJob_synchronization_outer.start();
         ExecutionContext execCtx;
         synchronized (mutex) {
-            Timers.i().jobExecService_synchronization_inner.start();
+            Timers.i().jobExecService_runLightJob_synchronization_inner.start();
             addExecutionContextJobId(jobId, executionId, coordinator);
             execCtx = executionContexts.computeIfAbsent(executionId,
                     x -> new ExecutionContext(nodeEngine, jobId, executionId, true));
-            Timers.i().jobExecService_synchronization_inner.stop();
+            Timers.i().jobExecService_runLightJob_synchronization_inner.stop();
         }
-        Timers.i().jobExecService_synchronization_outer.stop();
+        Timers.i().jobExecService_runLightJob_synchronization_outer.stop();
 
         Set<Address> addresses = participants.stream().map(MemberInfo::getAddress).collect(toSet());
         ClassLoader jobCl = getClassLoader(plan.getJobConfig(), jobId);
